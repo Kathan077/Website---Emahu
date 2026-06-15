@@ -5,6 +5,36 @@ import Link from 'next/link';
 import BuyerHeader from '@/components/buyer_home/buyer_header';
 import './orders.css';
 
+function parseOrderDate(ord) {
+  if (!ord) return new Date(0);
+  
+  // 1. Try ord.createdAt (Mongoose ISO date string or Date object)
+  if (ord.createdAt) {
+    const d = new Date(ord.createdAt);
+    if (!isNaN(d.getTime())) return d;
+  }
+  
+  // 2. Try ord.date (custom date string)
+  if (ord.date) {
+    const d = new Date(ord.date);
+    if (!isNaN(d.getTime())) return d;
+    
+    // Attempt custom format matching (DD/MM/YYYY or DD-MM-YYYY)
+    const match = String(ord.date).match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const year = parseInt(match[3], 10);
+      if (day >= 1 && day <= 31 && month >= 0 && month <= 11) {
+        const parsedD = new Date(year, month, day);
+        if (!isNaN(parsedD.getTime())) return parsedD;
+      }
+    }
+  }
+  
+  return new Date(0);
+}
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
   const [disputedOrderId, setDisputedOrderId] = useState(null);
@@ -12,19 +42,52 @@ export default function OrdersPage() {
   const [disputedOrdersList, setDisputedOrdersList] = useState([]);
   const [releasedOrdersList, setReleasedOrdersList] = useState([]);
 
-  // Load orders history from localStorage on mount
+  // Load orders history from database or localStorage on mount
   useEffect(() => {
-    const loadRealOrders = () => {
+    const loadRealOrders = async () => {
       try {
-        const storedOrders = localStorage.getItem('emahu_orders');
-        if (storedOrders) {
-          setOrders(JSON.parse(storedOrders));
-        } else {
-          // Mock seed orders if none exist for a professional look
+        let buyerUserId = '';
+        const buyerUserStr = localStorage.getItem('emahu_buyer_user');
+        if (buyerUserStr) {
+          try {
+            buyerUserId = JSON.parse(buyerUserStr).id || JSON.parse(buyerUserStr)._id || '';
+          } catch (e) {}
+        }
+        if (!buyerUserId) {
+          let guestId = localStorage.getItem('emahu_guest_id');
+          if (!guestId) {
+            guestId = 'guest_' + Math.floor(100000 + Math.random() * 900000) + '_' + Date.now();
+            localStorage.setItem('emahu_guest_id', guestId);
+          }
+          buyerUserId = guestId;
+        }
+        
+        let storedOrders = '[]';
+        try {
+          const url = `http://localhost:5000/api/orders?userId=${buyerUserId}`;
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data.success && data.orders) {
+            storedOrders = JSON.stringify(data.orders);
+            localStorage.setItem('emahu_orders', storedOrders);
+          } else {
+            storedOrders = localStorage.getItem('emahu_orders') || '[]';
+          }
+        } catch (apiErr) {
+          console.warn('API error fetching buyer orders, falling back to localStorage:', apiErr);
+          storedOrders = localStorage.getItem('emahu_orders') || '[]';
+        }
+
+        let parsedOrders = JSON.parse(storedOrders);
+
+        if (parsedOrders.length === 0) {
+          // Mock seed orders if none exist for a professional look (using current date so it is not filtered)
+          const todayDate = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
           const seedOrders = [
             {
               orderId: 'EMH_772918',
-              date: '24 May 2026',
+              date: todayDate,
+              createdAt: new Date().toISOString(),
               items: [
                 {
                   name: 'Sony WH-1000XM5 Headphones',
@@ -55,52 +118,201 @@ export default function OrdersPage() {
             }
           ];
           localStorage.setItem('emahu_orders', JSON.stringify(seedOrders));
-          setOrders(seedOrders);
+          parsedOrders = seedOrders;
         }
-      } catch(e) {
-        console.error(e);
+
+        // 1. Filter out orders older than 1 month (30 days)
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+        
+        const filtered = parsedOrders.filter(ord => {
+          const orderDate = parseOrderDate(ord);
+          return orderDate >= oneMonthAgo;
+        });
+
+        // 2. Sort orders so that the newest order is always first
+        const sorted = filtered.sort((a, b) => {
+          const dateA = parseOrderDate(a);
+          const dateB = parseOrderDate(b);
+          return dateB - dateA;
+        });
+
+        // 3. Group by billId (fallback to orderId if no billId is present)
+        const groupedMap = new Map();
+        sorted.forEach(ord => {
+          const groupKey = ord.billId || ord.orderId;
+          if (!groupedMap.has(groupKey)) {
+            groupedMap.set(groupKey, {
+              billId: groupKey,
+              orderId: ord.orderId, // representative ID
+              date: ord.date,
+              createdAt: ord.createdAt,
+              deliveryAddress: ord.deliveryAddress,
+              shippingSpeed: ord.shippingSpeed,
+              escrowMethod: ord.escrowMethod,
+              status: ord.status,
+              items: [],
+              total: 0,
+              ordersList: []
+            });
+          }
+          const group = groupedMap.get(groupKey);
+          // Attach each item's per-order status and rejection reason for individual tracking
+          const itemsWithStatus = ord.items.map(item => ({
+            ...item,
+            _orderId: ord.orderId,
+            _status: ord.status,
+            _sellerRejected: ord.sellerRejected || false,
+            _rejectionReason: ord.rejectionReason || null
+          }));
+          group.items.push(...itemsWithStatus);
+          group.total += ord.total;
+          group.ordersList.push(ord);
+        });
+
+        const groupedOrders = Array.from(groupedMap.values()).map(group => {
+          const statuses = group.ordersList.map(o => o.status);
+          const hasDisputed = statuses.some(s => s.includes('DISPUTED') || s === 'disputed' || s === '⚠️ VAULT DISPUTED / FROZEN');
+
+          // Distinguish ALL rejected vs SOME rejected
+          const isOrderRejected = (o) => o.sellerRejected || o.status.includes('REJECTED') || o.status.includes('Rejected') || o.status === '❌ Order Rejected by Seller';
+          const allRejected = group.ordersList.every(o => isOrderRejected(o));
+          const someRejected = !allRejected && group.ordersList.some(o => isOrderRejected(o));
+
+          const allReleased = statuses.every(s => s.includes('RELEASED') || s.includes('Released') || s === '🔓 FUNDS RELEASED');
+          // Only count confirmed for non-rejected sub-orders
+          const hasConfirmed = group.ordersList.some(o => !isOrderRejected(o) && (o.sellerConfirmed || ['DELIVERY_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(o.status)));
+          const allConfirmed = group.ordersList.every(o => isOrderRejected(o) || o.sellerConfirmed || ['DELIVERY_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(o.status));
+          const isPending = group.ordersList.every(o => o.status === 'PENDING_APPROVAL');
+
+          const rejectedSubOrders = group.ordersList.filter(o => isOrderRejected(o));
+
+          let overallStatus = '🔒 ESCROW VAULT SECURED';
+          if (hasDisputed) {
+            overallStatus = '⚠️ VAULT DISPUTED / FROZEN';
+          } else if (allReleased) {
+            overallStatus = '🔓 FUNDS RELEASED';
+          } else if (allRejected) {
+            overallStatus = '❌ Order Rejected by Seller';
+          } else if (someRejected && hasConfirmed) {
+            overallStatus = '⚠️ Partial Rejection — Items in Transit';
+          } else if (someRejected) {
+            overallStatus = '⚠️ Partial Rejection — Items Pending';
+          } else if (hasConfirmed) {
+            overallStatus = '✓ Delivery Confirmed by Seller';
+          } else if (isPending) {
+            overallStatus = 'PENDING_APPROVAL';
+          }
+
+          return {
+            ...group,
+            status: overallStatus,
+            canDisputeOrRelease: !allReleased && !hasDisputed && !allRejected && hasConfirmed,
+            sellerConfirmed: hasConfirmed,
+            sellerRejected: allRejected,
+            someRejected,
+            allRejected,
+            rejectedSubOrders
+          };
+        });
+
+        setOrders(groupedOrders);
+      } catch (e) {
+        console.error('Error loading real orders:', e);
       }
     };
 
     loadRealOrders();
     window.addEventListener('storage', loadRealOrders);
-    return () => window.removeEventListener('storage', loadRealOrders);
+
+    const interval = setInterval(loadRealOrders, 3000);
+
+    return () => {
+      window.removeEventListener('storage', loadRealOrders);
+      clearInterval(interval);
+    };
   }, []);
 
+  // Helper to sync order status update to database and full localStorage
+  const syncOrderStatus = async (orderId, nextStatus) => {
+    try {
+      // 1. Sync to database
+      await fetch(`http://localhost:5000/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: nextStatus })
+      });
+    } catch (err) {
+      console.error('Failed to sync order status to DB:', err);
+    }
+
+    try {
+      // 2. Sync to full list in localStorage
+      const stored = localStorage.getItem('emahu_orders');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const updatedAll = parsed.map(ord => {
+          if (ord.orderId === orderId) {
+            return { ...ord, status: nextStatus };
+          }
+          return ord;
+        });
+        localStorage.setItem('emahu_orders', JSON.stringify(updatedAll));
+      }
+    } catch (localErr) {
+      console.error('Failed to sync order status to localStorage:', localErr);
+    }
+  };
+
   // Action: Release funds from Escrow Vault directly to Merchant
-  const handleReleaseFunds = (orderId) => {
+  const handleReleaseFunds = async (billId, ordersList) => {
     const confirmation = window.confirm("Are you absolutely sure the package has arrived safely and is in perfect condition? Releasing the escrow locks will transfer funds directly to the merchant. This action CANNOT be reversed!");
     if (!confirmation) return;
 
-    setReleasedOrdersList(prev => [...prev, orderId]);
-    // Update local state status
+    setReleasedOrdersList(prev => [...prev, billId]);
+    
+    // Update local React state status
     const updated = orders.map(ord => {
-      if (ord.orderId === orderId) {
-        return { ...ord, status: '🔓 FUNDS RELEASED' };
+      if (ord.billId === billId) {
+        return { ...ord, status: '🔓 FUNDS RELEASED', canDisputeOrRelease: false };
       }
       return ord;
     });
     setOrders(updated);
-    localStorage.setItem('emahu_orders', JSON.stringify(updated));
+    
+    for (const o of ordersList) {
+      await syncOrderStatus(o.orderId, '🔓 FUNDS RELEASED');
+    }
   };
 
   // Action: Raise Quality Dispute / Reject Delivery
-  const handleRaiseDispute = (e) => {
+  const handleRaiseDispute = async (e) => {
     e.preventDefault();
     if (!disputeReason) return;
     
     setDisputedOrdersList(prev => [...prev, disputedOrderId]);
     
+    // Update local React state status
     const updated = orders.map(ord => {
-      if (ord.orderId === disputedOrderId) {
-        return { ...ord, status: '⚠️ VAULT DISPUTED / FROZEN' };
+      if (ord.billId === disputedOrderId) {
+        return { ...ord, status: '⚠️ VAULT DISPUTED / FROZEN', canDisputeOrRelease: false };
       }
       return ord;
     });
     setOrders(updated);
-    localStorage.setItem('emahu_orders', JSON.stringify(updated));
+    
+    const targetBillId = disputedOrderId;
+    const group = orders.find(g => g.billId === targetBillId);
     setDisputedOrderId(null);
     setDisputeReason('');
+
+    if (group && group.ordersList) {
+      for (const o of group.ordersList) {
+        await syncOrderStatus(o.orderId, '⚠️ VAULT DISPUTED / FROZEN');
+      }
+    }
   };
 
   return (
@@ -164,19 +376,19 @@ export default function OrdersPage() {
           /* Orders list */
           <div className="orders-list">
             {orders.map(ord => {
-              const isDisputed = disputedOrdersList.includes(ord.orderId) || ord.status.includes('DISPUTED') || ord.sellerRejected;
-              const isReleased = releasedOrdersList.includes(ord.orderId) || ord.status.includes('RELEASED');
+              const isDisputed = disputedOrdersList.includes(ord.billId) || ord.status.includes('DISPUTED') || ord.ordersList.some(o => o.sellerRejected);
+              const isReleased = releasedOrdersList.includes(ord.billId) || ord.status.includes('RELEASED');
               const isLocked = !isDisputed && !isReleased;
               
               return (
-                <div key={ord.orderId} className={`order-card ${isDisputed ? 'order-card--disputed' : ''} ${isReleased ? 'order-card--released' : ''} ${isLocked ? 'order-card--locked' : ''}`}>
+                <div key={ord.billId} className={`order-card ${isDisputed ? 'order-card--disputed' : ''} ${isReleased ? 'order-card--released' : ''} ${isLocked ? 'order-card--locked' : ''}`}>
                   
                   {/* Card Header summary */}
                   <div className="order-card-header">
                     <div>
-                      <span className="order-card-label">ESCROW LOCK ID</span>
-                      <Link href={`/buyer/track?id=${ord.orderId}`} className="order-card-val" style={{ color: '#4169e1', textDecoration: 'underline' }}>
-                        {ord.orderId}
+                      <span className="order-card-label">ESCROW LOCK BILL ID</span>
+                      <Link href={`/buyer/track?id=${ord.billId}`} className="order-card-val" style={{ color: '#4169e1', textDecoration: 'underline' }}>
+                        {ord.billId}
                       </Link>
                     </div>
                     <div>
@@ -198,19 +410,47 @@ export default function OrdersPage() {
                   {/* List of ordered products inside */}
                   <div className="order-card-body">
                     <div className="order-card-items">
-                      {ord.items.map((item, idx) => (
-                        <div key={idx} className="order-item-row">
-                          <img src={item.img} alt={item.name} className="order-item-img" />
+                      {ord.items.map((item, idx) => {
+                        const isItemRejected = item._sellerRejected || (item._status && (item._status.includes('REJECTED') || item._status === '❌ Order Rejected by Seller'));
+                        const isItemPending = !item._status || item._status === 'PENDING_APPROVAL';
+                        const isItemConfirmed = !isItemRejected && item._status && ['APPROVED','DELIVERY_ASSIGNED','LABEL_GENERATED','READY_FOR_PICKUP','PICKED_UP','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','COMPLETED','✓ Delivery Confirmed by Seller','🔓 FUNDS RELEASED'].some(s => item._status.includes(s));
+                        return (
+                        <div key={idx} className="order-item-row" style={isItemRejected ? { opacity: 0.75, background: 'rgba(239,68,68,0.04)', borderRadius: '10px', padding: '2px 6px' } : {}}>
+                          <img src={item.img} alt={item.name} className="order-item-img" style={isItemRejected ? { filter: 'grayscale(0.5)' } : {}} />
                           <div className="order-item-details">
                             <span className="order-item-brand">{item.brand}</span>
                             <h4 className="order-item-name">{item.name}</h4>
                             <span className="order-item-qty">Qty: <strong>{item.quantity}</strong></span>
+                            {/* Per-item delivery status badge */}
+                            {isItemRejected && (
+                              <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.73rem', fontWeight: '700', color: '#ef4444', background: 'rgba(239,68,68,0.1)', borderRadius: '6px', padding: '3px 8px', width: 'fit-content' }}>
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                  Item Not Deliverable
+                                </span>
+                                {item._rejectionReason && (
+                                  <span style={{ fontSize: '0.71rem', color: '#94a3b8', paddingLeft: '4px' }}>Reason: {item._rejectionReason}</span>
+                                )}
+                              </div>
+                            )}
+                            {isItemPending && !isItemRejected && (
+                              <span style={{ marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.73rem', fontWeight: '700', color: '#f59e0b', background: 'rgba(245,158,11,0.1)', borderRadius: '6px', padding: '3px 8px', width: 'fit-content' }}>
+                                ⏳ Awaiting Seller Approval
+                              </span>
+                            )}
+                            {isItemConfirmed && (
+                              <span style={{ marginTop: '6px', display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '0.73rem', fontWeight: '700', color: '#10b981', background: 'rgba(16,185,129,0.1)', borderRadius: '6px', padding: '3px 8px', width: 'fit-content' }}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                                Confirmed for Delivery
+                              </span>
+                            )}
                           </div>
                           <div className="order-item-price">
                             ₹{(item.price * item.quantity).toLocaleString('en-IN')}
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {/* Delivery details if exist */}
@@ -263,7 +503,7 @@ export default function OrdersPage() {
                           </svg>
                           <span>Vault released successfully. Merchant has received the checkout funds. Transaction closed in full.</span>
                         </>
-                      ) : (disputedOrdersList.includes(ord.orderId) || ord.status.includes('DISPUTED')) ? (
+                      ) : (disputedOrdersList.includes(ord.billId) || ord.status.includes('DISPUTED')) ? (
                         <>
                           <svg className="footer-icon-disputed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
                             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -272,18 +512,30 @@ export default function OrdersPage() {
                           </svg>
                           <span style={{ color: '#ef4444', fontWeight: '600' }}>Transaction disputed! Vault locked indefinitely. Funds will not be sent to seller until inspection dispute resolves.</span>
                         </>
-                      ) : ord.sellerRejected ? (
+                      ) : ord.allRejected ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3">
                               <line x1="18" y1="6" x2="6" y2="18" />
                               <line x1="6" y1="6" x2="18" y2="18" />
                             </svg>
-                            <span style={{ color: '#ef4444', fontWeight: '700' }}>❌ Order Rejected by Seller</span>
+                            <span style={{ color: '#ef4444', fontWeight: '700' }}>❌ All Items Rejected by Seller</span>
                           </div>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '24px' }}>Escrow Vault Locked: The seller rejected this order. Capital will be automatically returned to your wallet.</span>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '24px' }}>Escrow Vault Locked: All items were rejected. Capital will be automatically returned to your wallet.</span>
                         </div>
-                      ) : ord.sellerConfirmed ? (
+                      ) : ord.someRejected ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="3">
+                              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                              <line x1="12" y1="9" x2="12" y2="13"/>
+                              <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <span style={{ color: '#d97706', fontWeight: '700' }}>⚠️ Partial Rejection — {ord.rejectedSubOrders?.length || 0} item group(s) not deliverable</span>
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '24px' }}>Escrow Protected: Funds for rejected items will be refunded. Other items are still being tracked.</span>
+                        </div>
+                      ) : ord.ordersList.some(o => o.sellerConfirmed) ? (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3">
@@ -305,15 +557,15 @@ export default function OrdersPage() {
                     </div>
 
                     <div className="order-actions">
-                      <Link href={`/buyer/track?id=${ord.orderId}`} className="orders-btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 18px', fontSize: '0.8rem', fontWeight: '750', textDecoration: 'none', border: '1.5px solid #cbd5e1', color: '#475569', borderRadius: '6px' }}>
+                      <Link href={`/buyer/track?id=${ord.billId}`} className="orders-btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 18px', fontSize: '0.8rem', fontWeight: '750', textDecoration: 'none', border: '1.5px solid #cbd5e1', color: '#475569', borderRadius: '6px' }}>
                         🚛 Track Transit
                       </Link>
-                      {!isReleased && !isDisputed && (ord.sellerConfirmed || ['DELIVERY_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(ord.status)) && (
+                      {!isReleased && !isDisputed && !ord.allRejected && ord.sellerConfirmed && (
                         <>
-                          <button className="orders-btn-outline-danger" onClick={() => setDisputedOrderId(ord.orderId)}>
+                          <button className="orders-btn-outline-danger" onClick={() => setDisputedOrderId(ord.billId)}>
                             ⚠️ Raise Dispute / Reject
                           </button>
-                          <button className="orders-btn-success" onClick={() => handleReleaseFunds(ord.orderId)}>
+                          <button className="orders-btn-success" onClick={() => handleReleaseFunds(ord.billId, ord.ordersList)}>
                             🔓 Release Vault to Merchant
                           </button>
                         </>

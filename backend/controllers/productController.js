@@ -276,9 +276,10 @@ exports.resubmitProduct = async (req, res) => {
     product.description = description.trim();
     product.image = image.trim();
 
-    // Auto-approve edits
-    product.approvalStatus = 'approved';
+    // Reset verification to false / pending admin approval
+    product.approvalStatus = 'pending';
     product.rejectionReason = undefined;
+    product.adminCode = undefined;
 
     await product.save();
 
@@ -313,6 +314,7 @@ exports.adminDecision = async (req, res) => {
     } else if (decision === 'reject') {
       product.approvalStatus = 'rejected';
       product.rejectionReason = reason || 'Product description or images do not match our standard listing terms.';
+      product.approvalAttempts = (product.approvalAttempts || 0) + 1;
     } else {
       return res.status(400).json({ success: false, error: 'Invalid decision type. Use approve or reject' });
     }

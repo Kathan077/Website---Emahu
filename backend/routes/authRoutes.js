@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   register,
   login,
+  googleLogin,
   refresh,
   logout,
   getMe,
@@ -14,6 +15,7 @@ const { protect } = require('../middleware/authMiddleware');
 // Public endpoints
 router.post('/register', register);
 router.post('/login', login);
+router.post('/google', googleLogin);
 router.post('/refresh', refresh);
 router.post('/logout', logout);
 

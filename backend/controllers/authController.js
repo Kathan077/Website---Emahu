@@ -161,6 +161,50 @@ exports.login = async (req, res) => {
   }
 };
 
+// @desc    Authenticate user via Google (OAuth Simulation / JWT parsing)
+// @route   POST /api/auth/google
+// @access  Public
+exports.googleLogin = async (req, res) => {
+  try {
+    const { email, name, role } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide a valid Google email'
+      });
+    }
+
+    // Find if user exists
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // Create user if not exists (Sign up)
+      console.log(`Google user not found. Creating new user with email ${email} and role ${role || 'buyer'}`);
+      
+      user = await User.create({
+        name: name || email.split('@')[0],
+        email,
+        password: `google_${Math.random().toString(36).substring(2, 12)}`, // randomized dummy password
+        role: role || 'buyer',
+        phone: '+91 99999 99999',
+        address: 'Google Account Address'
+      });
+    } else {
+      console.log(`Google user found: ${user.name} (${user.email})`);
+    }
+
+    // Send JWT and store refresh session
+    await sendTokenResponse(user, 200, req, res);
+  } catch (error) {
+    console.error('Google Auth Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Server Error during Google authentication'
+    });
+  }
+};
+
 // @desc    Refresh session and get a new access token (Refresh Token Rotation)
 // @route   POST /api/auth/refresh
 // @access  Public

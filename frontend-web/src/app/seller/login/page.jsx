@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import './login.css';
-import { loginUser, saveAuthSession } from '@/utils/auth';
+import { loginUser, saveAuthSession, googleLoginUser } from '@/utils/auth';
 
 /**
  * SellerLogin Component
@@ -25,6 +25,40 @@ export default function SellerLogin() {
       router.replace('/seller/dashboard');
     }
   }, [router]);
+
+  const handleGoogleSignIn = () => {
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    
+    const popup = window.open(
+      '/buyer/google-auth?role=seller',
+      'google_auth_popup',
+      `width=${width},height=${height},top=${top},left=${left}`
+    );
+
+    const handleMessage = async (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data?.role === 'seller') {
+        window.removeEventListener('message', handleMessage);
+        const { email, name, role } = event.data;
+        setLoading(true);
+        setError('');
+        try {
+          const data = await googleLoginUser({ email, name, role });
+          saveAuthSession(data, 'seller');
+          setLoading(false);
+          router.replace('/seller/dashboard');
+        } catch (err) {
+          setLoading(false);
+          setError(err.message || 'Google Sign-In failed');
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -212,7 +246,7 @@ export default function SellerLogin() {
 
           {/* Social Sign-In buttons */}
           <div className="sl-social-grid">
-            <button className="sl-social-btn" aria-label="Sign in with Google">
+            <button className="sl-social-btn" aria-label="Sign in with Google" onClick={handleGoogleSignIn} type="button">
               <svg width="20" height="20" viewBox="0 0 24 24">
                 <path fill="#EA4335" d="M12.2 10.3v3.4h5.7c-.2 1.3-1 2.4-2.2 3.1v2.6h3.6c2.1-1.9 3.3-4.7 3.3-8.1 0-.6-.1-1.1-.2-1.6H12.2z" />
                 <path fill="#4285F4" d="M12.2 24c3.2 0 6-1.1 7.9-2.9l-3.6-2.6c-1 .7-2.3 1.1-4.3 1.1-3.3 0-6.1-2.2-7.1-5.2H1.4v2.8C3.4 20.3 7.5 24 12.2 24z" />

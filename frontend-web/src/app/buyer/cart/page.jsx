@@ -51,20 +51,36 @@ export default function CartPage() {
         if (storedCart) {
           const parsed = JSON.parse(storedCart);
           // parsed: [{ id, quantity, color, size }]
-          const matched = parsed.map(cItem => {
+          const matched = [];
+          let hasStale = false;
+          
+          parsed.forEach(cItem => {
             const cItemId = typeof cItem === 'object' ? cItem.id : cItem;
             const prod = formattedList.find(p => p.id.toString() === cItemId.toString());
             if (prod) {
-              return {
+              matched.push({
                 ...prod,
                 quantity: cItem.quantity || 1,
                 selectedColor: cItem.color || 'Premium Black',
                 selectedSize: cItem.size || 'Regular'
-              };
+              });
+            } else {
+              hasStale = true;
             }
-            return null;
-          }).filter(Boolean);
+          });
+          
           setCartItems(matched);
+          
+          if (hasStale) {
+            const saveList = matched.map(p => ({
+              id: p.id,
+              quantity: p.quantity,
+              color: p.selectedColor,
+              size: p.selectedSize
+            }));
+            localStorage.setItem('emahu_cart', JSON.stringify(saveList));
+            window.dispatchEvent(new Event('storage'));
+          }
         }
       } catch (err) {
         console.error(err);
@@ -127,7 +143,7 @@ export default function CartPage() {
 
   // Recalculate totals
   const subtotal = cartItems.reduce((acc, p) => acc + (p.price * p.quantity), 0);
-  const shippingFee = (subtotal > 50000 || subtotal === 0) ? 0 : 99;
+  const shippingFee = subtotal === 0 ? 0 : 99;
   const taxAmount = Math.round(subtotal * 0.18); // 18% CGST/SGST
   const grandTotal = subtotal + shippingFee + taxAmount;
 
@@ -140,21 +156,88 @@ export default function CartPage() {
     
     setTimeout(() => {
       // Step 2: Completed Escrow Locked Success
-      const generatedCode = `EMH_${Math.floor(100000 + Math.random() * 900000)}`;
-      setTransactionCode(generatedCode);
-      setCheckoutStep('success');
+      const placedCodes = [];
       
       // Save order in orders history in localStorage
       try {
         const storedOrdersStr = localStorage.getItem('emahu_orders') || '[]';
         const storedOrders = JSON.parse(storedOrdersStr);
-        storedOrders.push({
-          orderId: generatedCode,
-          date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-          items: cartItems.map(p => ({ name: p.name, price: p.price, quantity: p.quantity, brand: p.brand, img: p.img })),
-          total: grandTotal,
-          status: '🔒 ESCROW VAULT SECURED'
+        
+        let buyerUserId = '';
+        const buyerUserStr = localStorage.getItem('emahu_buyer_user');
+        if (buyerUserStr) {
+          try {
+            buyerUserId = JSON.parse(buyerUserStr).id || JSON.parse(buyerUserStr)._id || '';
+          } catch (e) {}
+        }
+        if (!buyerUserId) {
+          let guestId = localStorage.getItem('emahu_guest_id');
+          if (!guestId) {
+            guestId = 'guest_' + Math.floor(100000 + Math.random() * 900000) + '_' + Date.now();
+            localStorage.setItem('emahu_guest_id', guestId);
+          }
+          buyerUserId = guestId;
+        }
+
+        const billId = `BILL_${Math.floor(100000 + Math.random() * 900000)}`;
+        cartItems.forEach((item) => {
+          const generatedCode = `EMH_${Math.floor(100000 + Math.random() * 900000)}`;
+          placedCodes.push(generatedCode);
+          
+          const subtotal = item.price * item.quantity;
+          const shippingFee = subtotal === 0 ? 0 : 99;
+          const taxAmount = Math.round(subtotal * 0.18);
+          const grandTotalItem = subtotal + shippingFee + taxAmount;
+          
+          const sellerObj = item.seller || null;
+          let sellerId = 'default_seller';
+          let sellerEmail = null;
+          if (sellerObj) {
+            if (typeof sellerObj === 'string') {
+              sellerId = sellerObj;
+            } else if (typeof sellerObj === 'object') {
+              sellerId = sellerObj._id || sellerObj.id || 'default_seller';
+              sellerEmail = sellerObj.email || null;
+            }
+          }
+          
+          storedOrders.push({
+            orderId: generatedCode,
+            billId: billId,
+            sellerId: sellerId,
+            sellerEmail: sellerEmail,
+            userId: buyerUserId,
+            date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+            createdAt: new Date().toISOString(),
+            items: [{
+              productId: item.id,
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+              brand: item.brand,
+              img: item.img,
+              seller: item.seller || { name: item.brand || 'Emahu Seller', email: 'support@emahu.com', phone: '+91 99999 99999' }
+            }],
+            total: grandTotalItem,
+            status: 'PENDING_APPROVAL',
+            timeline: [
+              { status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: '⏳ Waiting for Seller Approval', date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }
+            ],
+            deliveryAddress: {
+              fullName: 'Guest Customer',
+              phone: '+91 99999 99999',
+              email: 'guest@emahu.com',
+              address: 'Emahu Hub Office',
+              city: 'Delhi',
+              stateName: 'Delhi',
+              pincode: '110001'
+            },
+            shippingSpeed: 'standard',
+            escrowMethod: 'wallet'
+          });
         });
+        
+        setTransactionCode(placedCodes.join(', '));
         localStorage.setItem('emahu_orders', JSON.stringify(storedOrders));
       } catch (err) {
         console.error(err);
@@ -164,6 +247,7 @@ export default function CartPage() {
       setCartItems([]);
       localStorage.setItem('emahu_cart', JSON.stringify([]));
       window.dispatchEvent(new Event('storage'));
+      setCheckoutStep('success');
     }, 2800);
   };
 
@@ -317,11 +401,7 @@ export default function CartPage() {
                   <strong>₹{taxAmount.toLocaleString('en-IN')}</strong>
                 </div>
 
-                {subtotal < 50000 && (
-                  <div className="cart-shipping-notice">
-                    ⚡ Add <strong>₹{(50000 - subtotal).toLocaleString('en-IN')}</strong> more in value to unlock <strong>FREE Express Shipping!</strong>
-                  </div>
-                )}
+
 
                 <div className="cart-summary-divider" />
 
@@ -355,7 +435,7 @@ export default function CartPage() {
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                 </svg>
-                <span>Proceed to Secure Escrow</span>
+                <span>Proceed to Checkout</span>
               </Link>
 
             </div>

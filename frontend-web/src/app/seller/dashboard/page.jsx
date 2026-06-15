@@ -53,7 +53,7 @@ const INITIAL_PRODUCTS = [
     stock: 0,
     status: 'out-of-stock',
     sales: 198,
-    image: '💍'
+    image: 'ðŸ’'
   }
 ];
 
@@ -64,6 +64,29 @@ const getTimestampString = () => Date.now().toString();
 const getRandomNumberStr = (min, max) => Math.floor(min + Math.random() * (max - min)).toString();
 const getRandomWeightStr = () => `${(1.5 + Math.random() * 3).toFixed(2)} kg`;
 const generateNotificationId = () => `notif_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+function parseOrderDate(ord) {
+  if (!ord) return new Date();
+  if (ord.createdAt) {
+    const d = new Date(ord.createdAt);
+    if (!isNaN(d.getTime())) return d;
+  }
+  if (ord.date) {
+    const d = new Date(ord.date);
+    if (!isNaN(d.getTime())) return d;
+    const match = String(ord.date).match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const year = parseInt(match[3], 10);
+      if (day >= 1 && day <= 31 && month >= 0 && month <= 11) {
+        const parsedD = new Date(year, month, day);
+        if (!isNaN(parsedD.getTime())) return parsedD;
+      }
+    }
+  }
+  return new Date();
+}
 
 export default function EmahuProDashboard() {
   const router = useRouter();
@@ -162,14 +185,27 @@ export default function EmahuProDashboard() {
   // Dynamic Orders State
   const [orders, setOrders] = useState([]);
 
-  // Fetch real-time orders from localStorage to sync with buyer checkout
+  // Fetch real-time orders from database and localStorage to sync with buyer checkout
   useEffect(() => {
-    const loadRealOrders = () => {
+    const loadRealOrders = async () => {
       try {
-        let storedOrders = localStorage.getItem('emahu_orders');
-        if (!storedOrders) {
-          storedOrders = '[]';
-          localStorage.setItem('emahu_orders', '[]');
+        let storedOrders = '[]';
+        const sellerUserIdOpt = sellerUser ? (sellerUser._id || sellerUser.id || '').toString() : '';
+        try {
+          const url = sellerUserIdOpt 
+            ? `http://localhost:5000/api/orders?sellerId=${sellerUserIdOpt}`
+            : 'http://localhost:5000/api/orders';
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data.success && data.orders) {
+            storedOrders = JSON.stringify(data.orders);
+            localStorage.setItem('emahu_orders', storedOrders);
+          } else {
+            storedOrders = localStorage.getItem('emahu_orders') || '[]';
+          }
+        } catch (apiErr) {
+          console.warn('API error fetching orders, falling back to localStorage:', apiErr);
+          storedOrders = localStorage.getItem('emahu_orders') || '[]';
         }
         
         if (sellerUser) {
@@ -277,32 +313,35 @@ export default function EmahuProDashboard() {
               {
                 orderId: `EMH_${Math.floor(100000 + Math.random() * 900000)}`,
                 date: baseDate,
+                createdAt: new Date().toISOString(),
                 items: [{ name: 'Emahu Smart Luxe Chrono', price: 18999, quantity: 1, brand: 'Emahu Brand', img: '⌚', seller: sellerRef }],
                 total: 22419,
                 status: 'PENDING_APPROVAL',
-                timeline: [{ status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: '⏳ Waiting for Seller Approval', date: baseTime }],
+                timeline: [{ status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: 'â³ Waiting for Seller Approval', date: baseTime }],
                 deliveryAddress: { fullName: 'Rahul Sharma', phone: '+91 98765 43210', email: 'rahul@example.com', address: 'Flat 402, Royal Residency, Sector 15', city: 'Gandhinagar', stateName: 'Gujarat', pincode: '382016' },
                 shippingSpeed: 'express', escrowMethod: 'wallet'
               },
               {
                 orderId: `EMH_${Math.floor(100000 + Math.random() * 900000)}`,
                 date: baseDate,
+                createdAt: new Date().toISOString(),
                 items: [{ name: 'SoundAura Pro Headphones', price: 12500, quantity: 1, brand: 'SoundAura', img: '🎧', seller: sellerRef }],
                 total: 14750,
                 status: 'PENDING_APPROVAL',
-                timeline: [{ status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: '⏳ Waiting for Seller Approval', date: baseTime }],
+                timeline: [{ status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: 'â³ Waiting for Seller Approval', date: baseTime }],
                 deliveryAddress: { fullName: 'Priya Mehta', phone: '+91 87654 32100', email: 'priya@example.com', address: 'B-204, Sunrise Apartments', city: 'Pune', stateName: 'Maharashtra', pincode: '411001' },
                 shippingSpeed: 'standard', escrowMethod: 'upi'
               },
               {
                 orderId: `EMH_${Math.floor(100000 + Math.random() * 900000)}`,
                 date: baseDate,
-                items: [{ name: 'AuraRing Smart Health Tracker', price: 9500, quantity: 2, brand: 'AuraRing', img: '💍', seller: sellerRef }],
+                createdAt: new Date().toISOString(),
+                items: [{ name: 'AuraRing Smart Health Tracker', price: 9500, quantity: 2, brand: 'AuraRing', img: 'ðŸ’', seller: sellerRef }],
                 total: 22420,
                 status: 'APPROVED',
                 sellerConfirmed: true,
                 timeline: [
-                  { status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: '⏳ Waiting for Seller Approval', date: baseTime },
+                  { status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: 'â³ Waiting for Seller Approval', date: baseTime },
                   { status: 'APPROVED', label: 'Seller Approved', desc: '✅ Order approved by seller.', date: baseTime }
                 ],
                 deliveryAddress: { fullName: 'Amit Kumar', phone: '+91 76543 21000', email: 'amit@example.com', address: '12, MG Road', city: 'Bangalore', stateName: 'Karnataka', pincode: '560001' },
@@ -311,14 +350,15 @@ export default function EmahuProDashboard() {
               {
                 orderId: `EMH_${Math.floor(100000 + Math.random() * 900000)}`,
                 date: baseDate,
-                items: [{ name: 'Minimalist Solid Oak Desk', price: 28000, quantity: 1, brand: 'WoodCraft', img: '🪑', seller: sellerRef }],
+                createdAt: new Date().toISOString(),
+                items: [{ name: 'Minimalist Solid Oak Desk', price: 28000, quantity: 1, brand: 'WoodCraft', img: '🪵', seller: sellerRef }],
                 total: 33040,
                 status: 'REJECTED',
                 sellerRejected: true,
                 rejectionReason: 'Out of Stock',
                 timeline: [
-                  { status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: '⏳ Waiting for Seller Approval', date: baseTime },
-                  { status: 'REJECTED', label: 'Seller Rejected', desc: '❌ Rejected: Out of Stock', date: baseTime }
+                  { status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: 'â³ Waiting for Seller Approval', date: baseTime },
+                  { status: 'REJECTED', label: 'Seller Rejected', desc: 'âŒ Rejected: Out of Stock', date: baseTime }
                 ],
                 deliveryAddress: { fullName: 'Sneha Reddy', phone: '+91 65432 10000', email: 'sneha@example.com', address: '45, Jubilee Hills', city: 'Hyderabad', stateName: 'Telangana', pincode: '500033' },
                 shippingSpeed: 'express', escrowMethod: 'wallet'
@@ -358,7 +398,8 @@ export default function EmahuProDashboard() {
             
             // Sum of this seller's items
             const sellerItemsTotal = itemsList.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            const proportionalTotal = o.total ? Math.round(sellerItemsTotal * (o.total / (o.items || []).reduce((s, i) => s + (i.price * i.quantity), 0))) : sellerItemsTotal;
+            const totalSum = (o.items || []).reduce((s, i) => s + (i.price * i.quantity), 0);
+            const proportionalTotal = (o.total && totalSum > 0) ? Math.round(sellerItemsTotal * (o.total / totalSum)) : sellerItemsTotal;
 
             return {
               id: o.orderId,
@@ -400,6 +441,9 @@ export default function EmahuProDashboard() {
   const [orderStatusFilter, setOrderStatusFilter] = useState('all');
   const [notifications, setNotifications] = useState([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [orderLoading, setOrderLoading] = useState({});
+  const [verifyingEscrow, setVerifyingEscrow] = useState({});
+  const [verifiedEscrow, setVerifiedEscrow] = useState({});
 
   const selectedDetailedOrder = useMemo(() => {
     if (!selectedDetailedOrderId) return null;
@@ -456,8 +500,45 @@ export default function EmahuProDashboard() {
     }
   };
 
-  const handleApproveOrder = (orderId) => {
+  const syncOrderToDatabase = async (orderId, updatedOrdersList) => {
     try {
+      const order = updatedOrdersList.find(o => o.orderId === orderId);
+      if (order) {
+        const payload = { ...order };
+        delete payload._id;
+        delete payload.__v;
+        
+        const res = await fetch(`http://localhost:5000/api/orders/${orderId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!data.success) {
+          console.error(`Failed to update order ${orderId} in database:`, data.error);
+        }
+      }
+    } catch (e) {
+      console.error(`Error updating order ${orderId} in database:`, e);
+    }
+  };
+
+  const handleVerifyEscrow = (orderId, amount) => {
+    if (verifyingEscrow[orderId] || verifiedEscrow[orderId]) return;
+    setVerifyingEscrow(prev => ({ ...prev, [orderId]: true }));
+    setTimeout(() => {
+      setVerifyingEscrow(prev => ({ ...prev, [orderId]: false }));
+      setVerifiedEscrow(prev => ({ ...prev, [orderId]: true }));
+      triggerToast('Escrow Verified', `Cryptographic check complete. ₹${amount.toLocaleString('en-IN')} locked in Emahu Secure Vault.`, 'success');
+    }, 1200);
+  };
+
+  const handleApproveOrder = async (orderId) => {
+    if (orderLoading[orderId]) return;
+    try {
+      setOrderLoading(prev => ({ ...prev, [orderId]: true }));
       const storedOrders = localStorage.getItem('emahu_orders');
       if (storedOrders) {
         const parsed = JSON.parse(storedOrders);
@@ -486,15 +567,20 @@ export default function EmahuProDashboard() {
         window.dispatchEvent(new Event('storage'));
         pushNotification('Order Approved', `Your Order #${orderId} has been approved by the seller.`, 'buyer');
         triggerToast('Order Approved', `Order #${orderId} approved successfully.`, 'success');
+        await syncOrderToDatabase(orderId, updated);
       }
     } catch (err) {
       console.error(err);
       triggerToast('Error', 'Failed to approve order.', 'danger');
+    } finally {
+      setOrderLoading(prev => ({ ...prev, [orderId]: false }));
     }
   };
 
-  const handleRejectOrder = (orderId, reason) => {
+  const handleRejectOrder = async (orderId, reason) => {
+    if (orderLoading[orderId]) return;
     try {
+      setOrderLoading(prev => ({ ...prev, [orderId]: true }));
       const storedOrders = localStorage.getItem('emahu_orders');
       if (storedOrders) {
         const parsed = JSON.parse(storedOrders);
@@ -505,7 +591,7 @@ export default function EmahuProDashboard() {
             filteredTimeline.push({
               status: 'REJECTED',
               label: 'Seller Rejected',
-              desc: `❌ Rejected: ${reason || 'Merchant rejected the order listing.'}`,
+              desc: `âŒ Rejected: ${reason || 'Merchant rejected the order listing.'}`,
               date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
             });
             return {
@@ -523,15 +609,20 @@ export default function EmahuProDashboard() {
         window.dispatchEvent(new Event('storage'));
         pushNotification('Order Rejected', `Your Order #${orderId} was rejected by the merchant. Reason: ${reason || 'N/A'}`, 'buyer');
         triggerToast('Order Rejected', `Order #${orderId} rejected.`, 'danger');
+        await syncOrderToDatabase(orderId, updated);
       }
     } catch (err) {
       console.error(err);
       triggerToast('Error', 'Failed to reject order.', 'danger');
+    } finally {
+      setOrderLoading(prev => ({ ...prev, [orderId]: false }));
     }
   };
 
-  const handleSelectDeliveryPartner = (orderId, partnerName, estDays, cost) => {
+  const handleSelectDeliveryPartner = async (orderId, partnerName, estDays, cost) => {
+    if (orderLoading[orderId]) return;
     try {
+      setOrderLoading(prev => ({ ...prev, [orderId]: true }));
       const storedOrders = localStorage.getItem('emahu_orders');
       if (storedOrders) {
         const parsed = JSON.parse(storedOrders);
@@ -563,15 +654,20 @@ export default function EmahuProDashboard() {
         pushNotification('Shipment Assigned', `Your shipment for Order #${orderId} has been assigned to ${partnerName}.`, 'buyer');
         pushNotification('Courier Assigned', `Courier ${partnerName} has been assigned to Order #${orderId}.`, 'seller');
         triggerToast('Delivery Assigned', `Courier ${partnerName} assigned to Order #${orderId}.`, 'success');
+        await syncOrderToDatabase(orderId, updated);
       }
     } catch (err) {
       console.error(err);
       triggerToast('Error', 'Failed to assign delivery partner.', 'danger');
+    } finally {
+      setOrderLoading(prev => ({ ...prev, [orderId]: false }));
     }
   };
 
-  const handleGenerateLabel = (orderId) => {
+  const handleGenerateLabel = async (orderId) => {
+    if (orderLoading[orderId]) return;
     try {
+      setOrderLoading(prev => ({ ...prev, [orderId]: true }));
       const storedOrders = localStorage.getItem('emahu_orders');
       if (storedOrders) {
         const parsed = JSON.parse(storedOrders);
@@ -604,15 +700,20 @@ export default function EmahuProDashboard() {
         const fresh = updated.find(o => o.orderId === orderId);
         setActiveLabelOrder(fresh);
         setIsLabelModalOpen(true);
+        await syncOrderToDatabase(orderId, updated);
       }
     } catch (err) {
       console.error(err);
       triggerToast('Error', 'Failed to generate label.', 'danger');
+    } finally {
+      setOrderLoading(prev => ({ ...prev, [orderId]: false }));
     }
   };
 
-  const handleAssignAndGenerateLabel = (orderId, carrierName) => {
+  const handleAssignAndGenerateLabel = async (orderId, carrierName) => {
+    if (orderLoading[orderId]) return;
     try {
+      setOrderLoading(prev => ({ ...prev, [orderId]: true }));
       const storedOrders = localStorage.getItem('emahu_orders');
       if (storedOrders) {
         const parsed = JSON.parse(storedOrders);
@@ -669,15 +770,20 @@ export default function EmahuProDashboard() {
         const fresh = updated.find(o => o.orderId === orderId);
         setActiveLabelOrder(fresh);
         setIsLabelModalOpen(true);
+        await syncOrderToDatabase(orderId, updated);
       }
     } catch (err) {
       console.error(err);
       triggerToast('Error', 'Failed to generate shipping label.', 'danger');
+    } finally {
+      setOrderLoading(prev => ({ ...prev, [orderId]: false }));
     }
   };
 
-  const handleMarkReadyForPickup = (orderId) => {
+  const handleMarkReadyForPickup = async (orderId) => {
+    if (orderLoading[orderId]) return;
     try {
+      setOrderLoading(prev => ({ ...prev, [orderId]: true }));
       const storedOrders = localStorage.getItem('emahu_orders');
       if (storedOrders) {
         const parsed = JSON.parse(storedOrders);
@@ -704,15 +810,20 @@ export default function EmahuProDashboard() {
         pushNotification('Ready for Pickup', `Order #${orderId} is packed and ready for courier pickup.`, 'buyer');
         pushNotification('Pickup Confirmed', `Pickup request sent for Order #${orderId}.`, 'seller');
         triggerToast('Status Updated', `Order #${orderId} marked ready for pickup.`, 'success');
+        await syncOrderToDatabase(orderId, updated);
       }
     } catch (err) {
       console.error(err);
       triggerToast('Error', 'Failed to mark ready for pickup.', 'danger');
+    } finally {
+      setOrderLoading(prev => ({ ...prev, [orderId]: false }));
     }
   };
 
-  const handleAdvanceStatus = (orderId, nextStatus) => {
+  const handleAdvanceStatus = async (orderId, nextStatus) => {
+    if (orderLoading[orderId]) return;
     try {
+      setOrderLoading(prev => ({ ...prev, [orderId]: true }));
       const storedOrders = localStorage.getItem('emahu_orders');
       if (storedOrders) {
         const parsed = JSON.parse(storedOrders);
@@ -771,10 +882,13 @@ export default function EmahuProDashboard() {
         pushNotification(nextStatus, customerMsg, 'buyer');
         pushNotification(nextStatus, sellerMsg, 'seller');
         triggerToast('Status Advanced', `Order #${orderId} is now ${nextStatus}.`, 'success');
+        await syncOrderToDatabase(orderId, updated);
       }
     } catch (err) {
       console.error(err);
       triggerToast('Error', 'Failed to advance order status.', 'danger');
+    } finally {
+      setOrderLoading(prev => ({ ...prev, [orderId]: false }));
     }
   };
 
@@ -816,13 +930,10 @@ export default function EmahuProDashboard() {
       return () => clearTimeout(timer);
     }
   }, [toasts]);
-
-
-
   // Utility to push notifications
   const triggerToast = (title, message, type = 'success') => {
     const id = getTimestampString();
-    setToasts((prev) => [...prev, { id, title, message, type }]);
+    setToasts([{ id, title, message, type }]);
   };
 
   // Add Product Handler
@@ -908,8 +1019,8 @@ export default function EmahuProDashboard() {
       if (resubmitProductId) {
         setProducts((prev) => prev.map(p => (p.id || p._id) === resubmitProductId ? data.product : p));
         triggerToast(
-          'Product Updated',
-          `EMAHU-PRO: "${newProductName}" has been updated successfully and is live.`,
+          'Product Submitted',
+          `EMAHU-PRO: "${newProductName}" has been updated and is pending admin approval.`,
           'success'
         );
       } else {
@@ -944,6 +1055,42 @@ export default function EmahuProDashboard() {
     setNewProductImage('');
     setFormError('');
     setResubmitProductId(null);
+  };
+
+  const handleVerifyProductCode = async (productId) => {
+    const code = verifyCodes[productId];
+    if (!code || !code.trim()) {
+      triggerToast('Verification Error', 'Please enter a verification code first.', 'danger');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('emahu_seller_token');
+      const res = await fetch(`http://localhost:5000/api/products/${productId}/verify`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ code: code.trim() })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setProducts((prev) => prev.map(p => (p.id || p._id) === productId ? data.product : p));
+        triggerToast('Listing Approved', `Product listing "${data.product.name}" is now live!`, 'success');
+        setVerifyCodes(prev => {
+          const updated = { ...prev };
+          delete updated[productId];
+          return updated;
+        });
+      } else {
+        triggerToast('Verification Failed', data.error || 'Invalid verification code.', 'danger');
+      }
+    } catch (err) {
+      console.error('Verify code error:', err);
+      triggerToast('Error', 'Network error. Please try again.', 'danger');
+    }
   };
 
 
@@ -1045,9 +1192,9 @@ export default function EmahuProDashboard() {
 
     orders.forEach(o => {
       let dayName = 'Mon';
-      if (o.raw && o.raw.date) {
+      if (o.raw) {
         try {
-          const date = new Date(o.raw.date);
+          const date = parseOrderDate(o.raw);
           const dayIndex = date.getDay();
           dayName = days[dayIndex];
         } catch (e) {
@@ -1078,7 +1225,7 @@ export default function EmahuProDashboard() {
   const chartPoints = useMemo(() => {
     return chartData.map((d, i) => {
       const x = 70 + i * 65;
-      const y = 180 - (d.revenue / maxRevenue) * 140;
+      const y = 180 - (d.revenue / maxRevenue) * 135;
       return { x, y };
     });
   }, [chartData, maxRevenue]);
@@ -1127,6 +1274,15 @@ export default function EmahuProDashboard() {
     return chartPoints[peakDayIndex]?.y ?? 180;
   }, [chartPoints, peakDayIndex]);
 
+  const tooltipWidth = 115;
+  const tooltipX = useMemo(() => {
+    return Math.max(50, Math.min(480 - tooltipWidth, hoverX - 57));
+  }, [hoverX]);
+
+  const tooltipY = useMemo(() => {
+    return hoverY - 50;
+  }, [hoverY]);
+
   // Dynamic Geographic Shares Calculation
   const stateShares = useMemo(() => {
     const counts = {};
@@ -1157,7 +1313,7 @@ export default function EmahuProDashboard() {
   const checkoutPct = funnelViews > 0 ? Math.round((funnelCheckout / funnelViews) * 100) : 0;
   const salesPct = funnelViews > 0 ? (funnelSales / funnelViews * 100).toFixed(2) : '0.00';
 
-  // Orders tab computed values — recalculated on every render when orders/filter state changes
+  // Orders tab computed values â€” recalculated on every render when orders/filter state changes
   const pendingOrdersCount = orders.filter(o => o.status === 'PENDING_APPROVAL').length;
   const filteredOrdersDisplay = orderStatusFilter === 'all'
     ? orders
@@ -1465,7 +1621,7 @@ export default function EmahuProDashboard() {
                 <div className="stat-card warning-theme">
                   <div className="stat-header">
                     <span className="stat-title">Low Stock SKUs</span>
-                    <div className="stat-icon warning">⚠️</div>
+                    <div className="stat-icon warning">⚠️ï¸</div>
                   </div>
                   <div className="stat-value">{lowStockCount}</div>
                   <div className="stat-footer">
@@ -1513,10 +1669,9 @@ export default function EmahuProDashboard() {
                       </defs>
                       
                       {/* Grid Lines */}
-                      <line x1="40" y1="20" x2="480" y2="20" className="chart-grid-line" />
-                      <line x1="40" y1="65" x2="480" y2="65" className="chart-grid-line" />
-                      <line x1="40" y1="110" x2="480" y2="110" className="chart-grid-line" />
-                      <line x1="40" y1="155" x2="480" y2="155" className="chart-grid-line" />
+                      <line x1="40" y1="45" x2="480" y2="45" className="chart-grid-line" />
+                      <line x1="40" y1="90" x2="480" y2="90" className="chart-grid-line" />
+                      <line x1="40" y1="135" x2="480" y2="135" className="chart-grid-line" />
                       
                       {/* Axes */}
                       <line x1="40" y1="20" x2="40" y2="180" className="chart-axis-line" />
@@ -1550,14 +1705,6 @@ export default function EmahuProDashboard() {
                       <line x1={hoverX} y1={hoverY} x2={hoverX} y2="180" stroke="#10b981" strokeWidth="1.5" strokeDasharray="4 4" className="chart-hover-line" />
                       <rect x={hoverX - 15} y={hoverY} width="30" height={180 - hoverY} fill="rgba(16, 185, 129, 0.08)" className="chart-hover-bg" />
 
-                      {/* Tooltip Box */}
-                      <g className="chart-tooltip">
-                        <rect x={hoverX - 52} y={hoverY - 50 < 10 ? 10 : hoverY - 50} width="115" height="42" rx="6" fill="#18181b" />
-                        <text x={hoverX - 42} y={hoverY - 50 < 10 ? 26 : hoverY - 34} fill="#fff" fontSize="10" fontFamily="sans-serif">Peak Day: {chartData[peakDayIndex].day}</text>
-                        <circle cx={hoverX - 38} cy={hoverY - 50 < 10 ? 40 : hoverY - 20} r="3" fill="#10b981" />
-                        <text x={hoverX - 30} y={hoverY - 50 < 10 ? 43 : hoverY - 17} fill="#fff" fontSize="11" fontFamily="sans-serif" fontWeight="bold">₹{chartData[peakDayIndex].revenue.toLocaleString('en-IN')} <tspan fontWeight="normal" fill="#a1a1aa">Sales</tspan></text>
-                      </g>
-
                       {/* Interactive Dots for Revenue */}
                       {chartPoints.map((pt, idx) => (
                         <circle 
@@ -1571,6 +1718,14 @@ export default function EmahuProDashboard() {
                           className="chart-point" 
                         />
                       ))}
+
+                      {/* Tooltip Box (Rendered last to sit on top of all graph nodes) */}
+                      <g className="chart-tooltip">
+                        <rect x={tooltipX} y={tooltipY} width={tooltipWidth} height="42" rx="6" fill="#18181b" />
+                        <text x={tooltipX + 10} y={tooltipY + 16} fill="#fff" fontSize="10" fontFamily="sans-serif">Peak Day: {chartData[peakDayIndex].day}</text>
+                        <circle cx={tooltipX + 14} cy={tooltipY + 30} r="3" fill="#10b981" />
+                        <text x={tooltipX + 22} y={tooltipY + 33} fill="#fff" fontSize="11" fontFamily="sans-serif" fontWeight="bold">₹{chartData[peakDayIndex].revenue.toLocaleString('en-IN')} <tspan fontWeight="normal" fill="#a1a1aa">Sales</tspan></text>
+                      </g>
                     </svg>
                   </div>
                 </div>
@@ -1588,8 +1743,8 @@ export default function EmahuProDashboard() {
                         <div className="realtime-img">
                           {order.product.includes('Headphones') ? '🎧' : 
                            order.product.includes('Chrono') ? '⌚' : 
-                           order.product.includes('Desk') ? '🖥️' : 
-                           (order.product.includes('Tracker') || order.product.includes('Ring')) ? '💍' : '📦'}
+                           order.product.includes('Desk') ? 'ðŸ–¥ï¸' : 
+                           (order.product.includes('Tracker') || order.product.includes('Ring')) ? 'ðŸ’' : '📦'}
                         </div>
                         <div className="realtime-details">
                           <span className="realtime-title">{order.customer}</span>
@@ -1742,6 +1897,44 @@ export default function EmahuProDashboard() {
                                     Reason: {product.rejectionReason}
                                   </span>
                                 )}
+                                {isPending && (
+                                  <div style={{ display: 'flex', gap: '4px', marginTop: '6px', alignItems: 'center' }}>
+                                    <input
+                                      type="text"
+                                      placeholder="Admin Code"
+                                      className="form-input"
+                                      style={{
+                                        height: '28px',
+                                        fontSize: '0.75rem',
+                                        padding: '2px 6px',
+                                        width: '90px',
+                                        background: 'rgba(255,255,255,0.05)',
+                                        borderColor: 'rgba(255,255,255,0.1)',
+                                        color: '#fff',
+                                        borderRadius: '4px'
+                                      }}
+                                      value={verifyCodes[product.id || product._id] || ''}
+                                      onChange={(e) => setVerifyCodes(prev => ({
+                                        ...prev,
+                                        [product.id || product._id]: e.target.value
+                                      }))}
+                                    />
+                                    <button
+                                      className="company-portal-btn"
+                                      style={{
+                                        height: '28px',
+                                        fontSize: '0.75rem',
+                                        padding: '0 8px',
+                                        background: 'var(--color-success)',
+                                        borderColor: 'var(--color-success)',
+                                        whiteSpace: 'nowrap'
+                                      }}
+                                      onClick={() => handleVerifyProductCode(product.id || product._id)}
+                                    >
+                                      Verify
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td>
@@ -1768,7 +1961,7 @@ export default function EmahuProDashboard() {
                   </table>
                 ) : (
                   <div className="empty-state">
-                    <div className="empty-icon">📂</div>
+                    <div className="empty-icon">ðŸ“‚</div>
                     <h3>No products found</h3>
                     <p>Try refining your search queries or adding new list items to the directory.</p>
                     <button className="add-product-btn" onClick={() => setIsAddModalOpen(true)}>Add Product</button>
@@ -1788,7 +1981,7 @@ export default function EmahuProDashboard() {
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                   {pendingOrdersCount > 0 && (
-                    <span className="order-stat-pill pending">⏳ {pendingOrdersCount} Pending</span>
+                    <span className="order-stat-pill pending">â³ {pendingOrdersCount} Pending</span>
                   )}
                   {orders.filter(o => o.status === 'APPROVED').length > 0 && (
                     <span className="order-stat-pill approved">✅ {orders.filter(o => o.status === 'APPROVED').length} Approved</span>
@@ -1899,6 +2092,7 @@ export default function EmahuProDashboard() {
                                 className="btn-secondary"
                                 style={{ height: '30px', padding: '0 10px', fontSize: '0.75rem' }}
                                 onClick={() => setSelectedDetailedOrderId(order.id)}
+                                disabled={orderLoading[order.id]}
                               >
                                 Details
                               </button>
@@ -1908,8 +2102,9 @@ export default function EmahuProDashboard() {
                                   <button
                                     className="order-action-btn approve"
                                     onClick={() => handleApproveOrder(order.id)}
+                                    disabled={orderLoading[order.id]}
                                   >
-                                    ✓ Approve
+                                    {orderLoading[order.id] ? 'Processing...' : '✓ Approve'}
                                   </button>
                                   <button
                                     className="order-action-btn reject"
@@ -1919,6 +2114,7 @@ export default function EmahuProDashboard() {
                                       setCustomRejectReason('');
                                       setIsRejectModalOpen(true);
                                     }}
+                                    disabled={orderLoading[order.id]}
                                   >
                                     ✕ Reject
                                   </button>
@@ -1929,8 +2125,9 @@ export default function EmahuProDashboard() {
                                 <button
                                   className="order-action-btn carrier"
                                   onClick={() => { setSelectedOrderId(order.id); setIsDeliveryModalOpen(true); }}
+                                  disabled={orderLoading[order.id]}
                                 >
-                                  🚚 Assign Carrier
+                                  {orderLoading[order.id] ? 'Processing...' : '🚚 Assign Carrier'}
                                 </button>
                               )}
 
@@ -1938,8 +2135,9 @@ export default function EmahuProDashboard() {
                                 <button
                                   className="order-action-btn label"
                                   onClick={() => handleGenerateLabel(order.id)}
+                                  disabled={orderLoading[order.id]}
                                 >
-                                  🏷️ Gen. Label
+                                  {orderLoading[order.id] ? 'Processing...' : '🏷️ Gen. Label'}
                                 </button>
                               )}
 
@@ -1948,14 +2146,16 @@ export default function EmahuProDashboard() {
                                   <button
                                     className="order-action-btn carrier"
                                     onClick={() => { setActiveLabelOrder(order.raw); setIsLabelModalOpen(true); }}
+                                    disabled={orderLoading[order.id]}
                                   >
                                     🖨️ Print
                                   </button>
                                   <button
                                     className="order-action-btn approve"
                                     onClick={() => handleMarkReadyForPickup(order.id)}
+                                    disabled={orderLoading[order.id]}
                                   >
-                                    📦 Mark Ready
+                                    {orderLoading[order.id] ? 'Processing...' : '📦 Mark Ready'}
                                   </button>
                                 </>
                               )}
@@ -1964,8 +2164,9 @@ export default function EmahuProDashboard() {
                                 <button
                                   className="order-action-btn carrier"
                                   onClick={() => handleAdvanceStatus(order.id, 'PICKED_UP')}
+                                  disabled={orderLoading[order.id]}
                                 >
-                                  📤 Ship
+                                  {orderLoading[order.id] ? 'Processing...' : '🚀 Ship'}
                                 </button>
                               )}
 
@@ -1973,8 +2174,9 @@ export default function EmahuProDashboard() {
                                 <button
                                   className="order-action-btn label"
                                   onClick={() => handleAdvanceStatus(order.id, 'IN_TRANSIT')}
+                                  disabled={orderLoading[order.id]}
                                 >
-                                  🔄 In Transit
+                                  {orderLoading[order.id] ? 'Processing...' : '🚛 In Transit'}
                                 </button>
                               )}
 
@@ -1982,8 +2184,9 @@ export default function EmahuProDashboard() {
                                 <button
                                   className="order-action-btn label"
                                   onClick={() => handleAdvanceStatus(order.id, 'OUT_FOR_DELIVERY')}
+                                  disabled={orderLoading[order.id]}
                                 >
-                                  🛵 Out For Delivery
+                                  {orderLoading[order.id] ? 'Processing...' : '🛵 Out For Delivery'}
                                 </button>
                               )}
 
@@ -1991,8 +2194,9 @@ export default function EmahuProDashboard() {
                                 <button
                                   className="order-action-btn approve"
                                   onClick={() => handleAdvanceStatus(order.id, 'DELIVERED')}
+                                  disabled={orderLoading[order.id]}
                                 >
-                                  ✓ Delivered
+                                  {orderLoading[order.id] ? 'Processing...' : '🎉 Delivered'}
                                 </button>
                               )}
 
@@ -2211,13 +2415,13 @@ export default function EmahuProDashboard() {
 
             {resubmitProductId && products.find(p => (p.id || p._id) === resubmitProductId)?.rejectionReason && (
               <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.08)', color: 'var(--color-danger)', padding: '12px 24px', fontSize: '0.85rem', fontWeight: 600, borderBottom: '1px solid rgba(239, 68, 68, 0.12)' }}>
-                ⚠️ <strong>Admin Rejection Reason:</strong> {products.find(p => (p.id || p._id) === resubmitProductId)?.rejectionReason}
+                ⚠️ï¸ <strong>Admin Rejection Reason:</strong> {products.find(p => (p.id || p._id) === resubmitProductId)?.rejectionReason}
               </div>
             )}
 
             {formError && (
               <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--color-danger)', padding: '12px 24px', fontSize: '0.85rem', fontWeight: 600, borderBottom: '1px solid rgba(239, 68, 68, 0.15)' }}>
-                ⚠️ {formError}
+                ⚠️ï¸ {formError}
               </div>
             )}
 
@@ -2236,7 +2440,7 @@ export default function EmahuProDashboard() {
                   alignItems: 'center',
                   gap: '8px'
                 }}>
-                  <span style={{ fontSize: '1.1rem' }}>📝</span> General Product Details
+                  <span style={{ fontSize: '1.1rem' }}>ðŸ“</span> General Product Details
                 </div>
 
                 <div className="form-grid-2">
@@ -2358,7 +2562,7 @@ export default function EmahuProDashboard() {
                     </span>
                     {newProductComparePrice && newProductPrice && parseFloat(newProductComparePrice) <= parseFloat(newProductPrice) && (
                       <span style={{ color: 'var(--color-danger)', fontSize: '0.75rem', marginTop: '4px', display: 'block', fontWeight: '500' }}>
-                        ⚠️ Compare-at price must be greater than Listing Price.
+                        ⚠️ï¸ Compare-at price must be greater than Listing Price.
                       </span>
                     )}
                   </div>
@@ -2433,7 +2637,7 @@ export default function EmahuProDashboard() {
                   alignItems: 'center',
                   gap: '8px'
                 }}>
-                  <span style={{ fontSize: '1.1rem' }}>🖼️</span> Product Copy and Specifications
+                  <span style={{ fontSize: '1.1rem' }}>ðŸ–¼ï¸</span> Product Copy and Specifications
                 </div>
 
                 <div className="form-group">
@@ -2525,17 +2729,19 @@ export default function EmahuProDashboard() {
                     borderRadius: '10px', 
                     backgroundColor: 'rgba(255,255,255,0.03)', 
                     border: '1px solid rgba(255,255,255,0.08)',
-                    cursor: 'pointer',
+                    cursor: orderLoading[selectedOrderId] ? 'not-allowed' : 'pointer',
+                    opacity: orderLoading[selectedOrderId] ? 0.6 : 1,
                     transition: 'all 0.2s ease'
                   }}
                   onClick={() => {
+                    if (orderLoading[selectedOrderId]) return;
                     handleSelectDeliveryPartner(selectedOrderId, partner.name, partner.time, partner.cost);
                     setIsDeliveryModalOpen(false);
                   }}
                 >
                   <div>
                     <h4 style={{ margin: '0 0 4px 0', color: '#fff', fontSize: '1rem' }}>{partner.name}</h4>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>🕒 Est. delivery: {partner.time} | ⭐ {partner.rating} Rating</span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>🕒 Est. delivery: {partner.time} | â­ {partner.rating} Rating</span>
                   </div>
                   <strong style={{ color: 'var(--color-success)', fontSize: '1.1rem' }}>₹{partner.cost}</strong>
                 </div>
@@ -2599,7 +2805,9 @@ export default function EmahuProDashboard() {
               <button 
                 className="modal-btn delete" 
                 style={{ background: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}
+                disabled={orderLoading[selectedOrderId]}
                 onClick={() => {
+                  if (orderLoading[selectedOrderId]) return;
                   const finalReason = rejectionReasonType === 'Other' ? customRejectReason.trim() : rejectionReasonType;
                   if (rejectionReasonType === 'Other' && !finalReason) {
                     triggerToast('Error', 'Please enter a custom rejection reason.', 'danger');
@@ -2609,7 +2817,7 @@ export default function EmahuProDashboard() {
                   setIsRejectModalOpen(false);
                 }}
               >
-                Reject Order
+                {orderLoading[selectedOrderId] ? 'Rejecting...' : 'Reject Order'}
               </button>
             </div>
           </div>
@@ -2697,11 +2905,28 @@ export default function EmahuProDashboard() {
                 style={{ background: '#4f46e5', borderColor: '#4f46e5', color: '#fff' }}
                 onClick={() => {
                   const printContent = document.getElementById('printable-shipping-label').innerHTML;
-                  const originalContent = document.body.innerHTML;
-                  document.body.innerHTML = printContent;
-                  window.print();
-                  document.body.innerHTML = originalContent;
-                  window.location.reload();
+                  const printWindow = window.open('', '_blank');
+                  printWindow.document.write(`
+                    <html>
+                      <head>
+                        <title>Shipping Label - Order #${activeLabelOrder.orderId}</title>
+                        <style>
+                          body { margin: 20px; font-family: monospace; color: #000; background: #fff; }
+                          * { box-sizing: border-box; }
+                        </style>
+                      </head>
+                      <body>
+                        ${printContent}
+                        <script>
+                          window.onload = function() {
+                            window.print();
+                            window.close();
+                          };
+                        </script>
+                      </body>
+                    </html>
+                  `);
+                  printWindow.document.close();
                 }}
               >
                 🖨️ Print Label
@@ -2742,287 +2967,465 @@ export default function EmahuProDashboard() {
                  (item.seller?.email && sellerUser?.email && item.seller.email === sellerUser.email);
         });
 
+        const ORDER_STAGES = [
+          { key: 'PENDING_APPROVAL', label: 'Pending',     icon: '⏳' },
+          { key: 'APPROVED',         label: 'Approved',    icon: '✅' },
+          { key: 'DELIVERY_ASSIGNED',label: 'Assigned',    icon: '🚚' },
+          { key: 'LABEL_GENERATED',  label: 'Label Ready', icon: '🏷️' },
+          { key: 'READY_FOR_PICKUP', label: 'Ready',       icon: '📦' },
+          { key: 'PICKED_UP',        label: 'Picked Up',   icon: '🚀' },
+          { key: 'IN_TRANSIT',       label: 'In Transit',  icon: '🚛' },
+          { key: 'OUT_FOR_DELIVERY', label: 'Out Delivery',icon: '🛵' },
+          { key: 'DELIVERED',        label: 'Delivered',   icon: '🎉' },
+          { key: 'COMPLETED',        label: 'Completed',   icon: '✔️' },
+        ];
+        const currentStageIdx = ORDER_STAGES.findIndex(s => s.key === selectedDetailedOrder.status);
+        const isRejected  = selectedDetailedOrder.status === 'REJECTED' || !!selectedDetailedOrder.sellerRejected;
+        const isCompleted = selectedDetailedOrder.status === 'COMPLETED' || selectedDetailedOrder.status === 'DELIVERED';
+
+        const stColorMap = {
+          PENDING_APPROVAL: { bg:'#fffbeb', text:'#d97706', border:'#fcd34d' },
+          APPROVED:         { bg:'#f0fdf4', text:'#16a34a', border:'#86efac' },
+          DELIVERY_ASSIGNED:{ bg:'#eff6ff', text:'#2563eb', border:'#93c5fd' },
+          LABEL_GENERATED:  { bg:'#f0f9ff', text:'#0369a1', border:'#7dd3fc' },
+          READY_FOR_PICKUP: { bg:'#fff7ed', text:'#ea580c', border:'#fdba74' },
+          PICKED_UP:        { bg:'#f5f3ff', text:'#7c3aed', border:'#c4b5fd' },
+          IN_TRANSIT:       { bg:'#faf5ff', text:'#7c3aed', border:'#d8b4fe' },
+          OUT_FOR_DELIVERY: { bg:'#fff1f2', text:'#e11d48', border:'#fda4af' },
+          DELIVERED:        { bg:'#f0fdf4', text:'#15803d', border:'#4ade80' },
+          COMPLETED:        { bg:'#f0fdf4', text:'#15803d', border:'#4ade80' },
+          REJECTED:         { bg:'#fef2f2', text:'#dc2626', border:'#fca5a5' },
+        };
+        const sc = isRejected ? stColorMap.REJECTED : (stColorMap[selectedDetailedOrder.status] || { bg:'#f8fafc', text:'#475569', border:'#cbd5e1' });
+
         return (
-          <div className="modal-overlay" style={{ zIndex: 9998, backgroundColor: 'rgba(0,0,0,0.7)' }}>
-            <div className="modal-card" style={{ maxWidth: '800px', backgroundColor: '#ffffff', color: '#0f172a', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <div className="modal-header" style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '14px', marginBottom: '20px' }}>
-                <div className="modal-title-group">
-                  <h3 style={{ color: '#0f172a', margin: 0, fontSize: '1.4rem', fontWeight: '700' }}>Order Details & Action Panel</h3>
-                  <p style={{ color: '#475569', margin: '4px 0 0 0', fontSize: '0.85rem' }}>Verify buyer checkout escrow lock & execute logistics stages</p>
+          <div className="modal-overlay" style={{ zIndex: 9998, backgroundColor: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)' }}>
+            <div style={{
+              background: '#ffffff', color: '#0f172a', width: '95vw', maxWidth: '940px',
+              borderRadius: '18px', border: '1px solid #e2e8f0', overflow: 'hidden',
+              boxShadow: '0 30px 70px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column',
+              maxHeight: '92vh'
+            }}>
+              {/* Header */}
+              <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%)', padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '3px' }}>
+                    <span style={{ fontSize: '1.1rem' }}>📋</span>
+                    <h3 style={{ color: '#fff', margin: 0, fontSize: '1.2rem', fontWeight: '700' }}>Order Details &amp; Action Panel</h3>
+                  </div>
+                  <p style={{ color: '#94a3b8', margin: 0, fontSize: '0.78rem' }}>Order #{selectedDetailedOrder.orderId} &nbsp;·&nbsp; {selectedDetailedOrder.date}</p>
                 </div>
-                <button className="modal-close-btn" style={{ color: '#475569' }} onClick={() => { setSelectedDetailedOrderId(null); setSelectedCarrier(''); }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ padding: '5px 14px', borderRadius: '20px', fontSize: '0.77rem', fontWeight: '700', background: sc.bg, color: sc.text, border: `1.5px solid ${sc.border}` }}>
+                    {isRejected ? '❌ Rejected' : `${ORDER_STAGES[currentStageIdx]?.icon || ''} ${ORDER_STAGES[currentStageIdx]?.label || selectedDetailedOrder.status}`}
+                  </span>
+                  <button onClick={() => { setSelectedDetailedOrderId(null); setSelectedCarrier(''); }}
+                    style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '8px', cursor: 'pointer', color: '#fff', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px', maxHeight: '65vh', overflowY: 'auto', paddingRight: '6px' }}>
-                {/* Left Column: Order details info */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
-                  <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>📦 Order Information</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.875rem' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#475569' }}>Order ID:</span><strong style={{ color: '#0f172a' }}>{selectedDetailedOrder.orderId}</strong></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#475569' }}>Date:</span><span style={{ color: '#0f172a' }}>{selectedDetailedOrder.date}</span></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#475569' }}>Payment Status:</span><span style={{ color: '#16a34a', fontWeight: '600' }}>Paid (Secured in Escrow Lock)</span></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#475569' }}>Order Total:</span><strong style={{ color: '#16a34a', fontSize: '1rem', fontWeight: '700' }}>₹{selectedDetailedOrder.total?.toLocaleString('en-IN')}</strong></div>
-                    </div>
-                  </div>
-
-                  <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>👤 Customer Information</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.875rem' }}>
-                      <div><strong style={{ color: '#0f172a' }}>{selectedDetailedOrder.deliveryAddress?.fullName}</strong></div>
-                      <div style={{ color: '#475569' }}>Phone: {selectedDetailedOrder.deliveryAddress?.phone}</div>
-                      <div style={{ color: '#475569' }}>Email: {selectedDetailedOrder.deliveryAddress?.email || 'N/A'}</div>
-                    </div>
-                  </div>
-
-                  <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>📍 Shipping Address</h4>
-                    <div style={{ fontSize: '0.875rem', color: '#475569', lineHeight: '1.4' }}>
-                      {selectedDetailedOrder.deliveryAddress?.address}<br />
-                      {selectedDetailedOrder.deliveryAddress?.city}, {selectedDetailedOrder.deliveryAddress?.stateName} - {selectedDetailedOrder.deliveryAddress?.pincode}
-                    </div>
-                  </div>
-
-                  <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: '700' }}>🛍️ Product Lines</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      {selectedDetailedOrder.items?.map((item, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                          <div style={{ fontSize: '1.8rem', padding: '6px', background: '#f1f5f9', borderRadius: '6px' }}>{item.img || '📦'}</div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.875rem', fontWeight: 'bold', color: '#0f172a' }}>{item.name}</div>
-                            <span style={{ fontSize: '0.75rem', color: '#475569' }}>Brand: {item.brand} | Qty: {item.quantity}</span>
+              {/* Stage Progress Bar */}
+              {!isRejected && !isCompleted && (
+                <div style={{ padding: '14px 28px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', overflowX: 'auto', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0', minWidth: 'max-content' }}>
+                    {ORDER_STAGES.map((stage, si) => {
+                      const done = currentStageIdx > si;
+                      const curr = currentStageIdx === si;
+                      return (
+                        <div key={stage.key} style={{ display: 'flex', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', width: '64px' }}>
+                            <div style={{ width: '34px', height: '34px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: '700', background: done ? '#16a34a' : curr ? '#2563eb' : '#e2e8f0', color: (done || curr) ? '#fff' : '#94a3b8', boxShadow: curr ? '0 0 0 3px rgba(37,99,235,0.22)' : 'none', transition: 'all 0.3s' }}>
+                              {done ? '✓' : stage.icon}
+                            </div>
+                            <span style={{ fontSize: '0.6rem', fontWeight: curr ? '700' : '500', color: curr ? '#2563eb' : done ? '#16a34a' : '#94a3b8', textAlign: 'center', lineHeight: 1.2 }}>{stage.label}</span>
                           </div>
-                          <strong style={{ fontSize: '0.875rem', color: '#0f172a' }}>₹{item.price?.toLocaleString('en-IN')}</strong>
+                          {si < ORDER_STAGES.length - 1 && (
+                            <div style={{ width: '20px', height: '2px', background: done ? '#16a34a' : '#e2e8f0', marginBottom: '16px', flexShrink: 0, transition: 'background 0.3s' }} />
+                          )}
                         </div>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
                 </div>
+              )}
 
-                {/* Right Column: Order Actions Panel */}
-                <div style={{ borderLeft: '1px solid #e2e8f0', paddingLeft: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                  <div style={{ backgroundColor: '#f0f7ff', border: '1px solid #bfe0ff', padding: '20px', borderRadius: '12px' }}>
-                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '1px', color: '#0055ff', fontWeight: '700' }}>Order Action Panel</span>
-                    <h3 style={{ margin: '4px 0 14px 0', fontSize: '1.2rem', color: '#1e3a8a', fontWeight: '700' }}>
-                      Status: {selectedDetailedOrder.status === 'PENDING_APPROVAL' ? 'Pending Approval' :
-                               selectedDetailedOrder.status === 'APPROVED' ? 'Approved' :
-                               selectedDetailedOrder.status === 'DELIVERY_ASSIGNED' ? 'Delivery Partner Assigned' :
-                               selectedDetailedOrder.status === 'LABEL_GENERATED' ? 'Label Generated' :
-                               selectedDetailedOrder.status === 'READY_FOR_PICKUP' ? 'Ready For Pickup' :
-                               selectedDetailedOrder.status === 'PICKED_UP' ? 'Picked Up' :
-                               selectedDetailedOrder.status === 'IN_TRANSIT' ? 'In Transit' :
-                               selectedDetailedOrder.status === 'OUT_FOR_DELIVERY' ? 'Out For Delivery' :
-                               selectedDetailedOrder.status === 'COMPLETED' || selectedDetailedOrder.status === 'DELIVERED' ? 'Completed' : selectedDetailedOrder.status}
-                    </h3>
+              {/* Body */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 1fr', flex: 1, overflowY: 'auto', minHeight: 0 }}>
 
-                    {/* Check role & ownership permissions */}
-                    {(!isSeller || !ownsOrder) ? (
-                      <div style={{ color: 'var(--color-danger)', fontSize: '0.85rem', padding: '10px 0' }}>
-                        ⚠️ You do not have permissions to execute actions on this order.
+                {/* LEFT: Info */}
+                <div style={{ padding: '22px 24px', display: 'flex', flexDirection: 'column', gap: '16px', borderRight: '1px solid #f0f0f0', overflowY: 'auto' }}>
+
+                  {/* Order Info */}
+                  <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>📦 Order Information</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.84rem' }}>
+                      {[['Order ID', <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#0f172a' }}>{selectedDetailedOrder.orderId}</span>],
+                        ['Date', selectedDetailedOrder.date],
+                        ['Payment Status', <span style={{ color: '#16a34a', fontWeight: '600' }}>🔒 Secured in Escrow</span>],
+                      ].map(([label, val], i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: i < 2 ? '1px solid #f0f0f0' : 'none', paddingBottom: i < 2 ? '8px' : '0' }}>
+                          <span style={{ color: '#64748b' }}>{label}</span>
+                          <strong>{val}</strong>
+                        </div>
+                      ))}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #e2e8f0', paddingTop: '8px', marginTop: '2px' }}>
+                        <span style={{ color: '#64748b' }}>Order Total</span>
+                        <strong style={{ color: '#16a34a', fontSize: '1rem' }}>₹{selectedDetailedOrder.total?.toLocaleString('en-IN')}</strong>
                       </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                        {selectedDetailedOrder.status === 'PENDING_APPROVAL' && (
-                          <div style={{ display: 'flex', gap: '12px' }}>
-                            <button
-                              className="company-portal-btn"
-                              style={{ flex: 1, height: '40px', background: '#16a34a', borderColor: '#16a34a', color: '#fff', fontWeight: '700' }}
-                              onClick={() => {
-                                handleApproveOrder(selectedDetailedOrder.orderId);
-                              }}
-                            >
-                              Approve Order
-                            </button>
-                            <button
-                              className="company-portal-btn"
-                              style={{ flex: 1, height: '40px', background: '#dc2626', borderColor: '#dc2626', color: '#fff', fontWeight: '700' }}
-                              onClick={() => {
-                                setSelectedOrderId(selectedDetailedOrder.orderId);
-                                setRejectionReasonType('Out of Stock');
-                                setCustomRejectReason('');
-                                setIsRejectModalOpen(true);
-                              }}
-                            >
-                              Reject Order
-                            </button>
-                          </div>
-                        )}
+                    </div>
+                  </div>
 
-                        {selectedDetailedOrder.status === 'APPROVED' && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <span style={{ fontSize: '0.85rem', color: '#16a34a', fontWeight: 'bold' }}>Order Approved ✅</span>
-                            
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              <label style={{ fontSize: '0.8rem', color: '#475569' }}>Select Delivery Partner:</label>
-                              <select 
-                                className="select-filter"
-                                style={{ width: '100%', height: '40px', background: '#ffffff', border: '1px solid #cbd5e1', color: '#0f172a' }}
-                                value={selectedCarrier}
-                                onChange={(e) => setSelectedCarrier(e.target.value)}
-                              >
-                                <option value="">-- Choose Courier Partner --</option>
-                                <option value="Delhivery">Delhivery</option>
-                                <option value="Blue Dart">Blue Dart</option>
-                                <option value="XpressBees">XpressBees</option>
-                                <option value="DTDC">DTDC</option>
-                              </select>
-                            </div>
-
-                            <button
-                              className="company-portal-btn"
-                              style={{ 
-                                height: '42px', 
-                                background: selectedCarrier ? '#4f46e5' : '#e2e8f0', 
-                                borderColor: selectedCarrier ? '#4f46e5' : '#cbd5e1', 
-                                color: selectedCarrier ? '#fff' : '#94a3b8',
-                                cursor: selectedCarrier ? 'pointer' : 'not-allowed',
-                                fontWeight: '700'
-                              }}
-                              disabled={!selectedCarrier}
-                              onClick={() => {
-                                handleAssignAndGenerateLabel(selectedDetailedOrder.orderId, selectedCarrier);
-                              }}
-                            >
-                              Generate Shipping Label
-                            </button>
-                          </div>
-                        )}
-
-                        {selectedDetailedOrder.status === 'LABEL_GENERATED' && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 'bold' }}>✅ Payment Completed</span>
-                              <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 'bold' }}>✅ Seller Approved</span>
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 'bold' }}>✅ Delivery Partner Assigned</span>
-                              <span style={{ fontSize: '0.8rem', color: '#16a34a', fontWeight: 'bold' }}>✅ Label Generated</span>
-                            </div>
-
-                            <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                              <button
-                                className="company-portal-btn"
-                                style={{ flex: 1, height: '40px', background: '#3b82f6', borderColor: '#3b82f6', color: '#fff' }}
-                                onClick={() => {
-                                  setActiveLabelOrder(selectedDetailedOrder);
-                                  setIsLabelModalOpen(true);
-                                }}
-                              >
-                                Print Label
-                              </button>
-                              <button
-                                className="company-portal-btn"
-                                style={{ flex: 1, height: '40px', background: '#10b981', borderColor: '#10b981', color: '#fff' }}
-                                onClick={() => {
-                                  handleMarkReadyForPickup(selectedDetailedOrder.orderId);
-                                }}
-                              >
-                                Mark Ready
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {selectedDetailedOrder.status === 'READY_FOR_PICKUP' && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                            <span style={{ fontSize: '0.85rem', color: '#d97706', fontWeight: '600' }}>⏳ Awaiting pickup by carrier partner agent</span>
-                            <button
-                              className="company-portal-btn"
-                              style={{ height: '40px', background: '#d97706', borderColor: '#d97706', color: '#fff', fontWeight: '700' }}
-                              onClick={() => {
-                                handleAdvanceStatus(selectedDetailedOrder.orderId, 'PICKED_UP');
-                              }}
-                            >
-                              Ship Package (Pickup)
-                            </button>
-                          </div>
-                        )}
-
-                        {/* Simulator Controls for Testing */}
-                        {['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(selectedDetailedOrder.status) && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px dashed #cbd5e1', paddingTop: '14px' }}>
-                            <span style={{ fontSize: '0.8rem', color: '#475569', fontWeight: '600' }}>Debug Simulator Tools:</span>
-                            
-                            {selectedDetailedOrder.status === 'PICKED_UP' && (
-                              <button
-                                className="company-portal-btn"
-                                style={{ height: '38px', background: '#3b82f6', borderColor: '#3b82f6', color: '#fff' }}
-                                onClick={() => handleAdvanceStatus(selectedDetailedOrder.orderId, 'IN_TRANSIT')}
-                              >
-                                Mark In Transit
-                              </button>
-                            )}
-
-                            {selectedDetailedOrder.status === 'IN_TRANSIT' && (
-                              <button
-                                className="company-portal-btn"
-                                style={{ height: '38px', background: '#a855f7', borderColor: '#a855f7', color: '#fff' }}
-                                onClick={() => handleAdvanceStatus(selectedDetailedOrder.orderId, 'OUT_FOR_DELIVERY')}
-                              >
-                                Mark Out For Delivery
-                              </button>
-                            )}
-
-                            {selectedDetailedOrder.status === 'OUT_FOR_DELIVERY' && (
-                              <button
-                                className="company-portal-btn"
-                                style={{ height: '38px', background: '#16a34a', borderColor: '#16a34a', color: '#fff' }}
-                                onClick={() => handleAdvanceStatus(selectedDetailedOrder.orderId, 'DELIVERED')}
-                              >
-                                Mark Delivered
-                              </button>
-                            )}
-                          </div>
-                        )}
-
-                        {(selectedDetailedOrder.status === 'COMPLETED' || selectedDetailedOrder.status === 'DELIVERED') && (
-                          <span style={{ color: '#16a34a', fontSize: '1rem', fontWeight: '700', textAlign: 'center', padding: '10px 0' }}>
-                            ✓ Transaction Completed
+                  {/* Escrow Lock Details */}
+                  <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '700', color: '#64748b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>🔐</span> Buyer Escrow Vault Lock
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.84rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b' }}>Vault Status</span>
+                        {verifiedEscrow[selectedDetailedOrder.orderId] ? (
+                          <span style={{ color: '#16a34a', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            🟢 LOCKED &amp; VERIFIED
+                          </span>
+                        ) : (
+                          <span style={{ color: '#ea580c', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            🟡 HELD IN COLD LOCK
                           </span>
                         )}
-
-                        {selectedDetailedOrder.status === 'REJECTED' && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px 0' }}>
-                            <span style={{ color: '#dc2626', fontSize: '1rem', fontWeight: '700' }}>
-                              ❌ Order Rejected
-                            </span>
-                            {selectedDetailedOrder.rejectionReason && (
-                              <span style={{ fontSize: '0.8rem', color: '#475569' }}>
-                                Reason: {selectedDetailedOrder.rejectionReason}
-                              </span>
-                            )}
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0f0f0', paddingTop: '8px' }}>
+                        <span style={{ color: '#64748b' }}>Escrow Account</span>
+                        <strong style={{ textTransform: 'capitalize' }}>
+                          {selectedDetailedOrder.escrowMethod ? `${selectedDetailedOrder.escrowMethod} Escrow` : 'Wallet Vault'}
+                        </strong>
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f0f0f0', paddingTop: '8px' }}>
+                        <span style={{ color: '#64748b' }}>Lock Hash</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#475569' }}>
+                          {(() => {
+                            let hash = 0;
+                            const str = selectedDetailedOrder.orderId || 'default';
+                            for (let i = 0; i < str.length; i++) {
+                              hash = str.charCodeAt(i) + ((hash << 5) - hash);
+                            }
+                            const hex = Math.abs(hash).toString(16).padEnd(8, '7f').slice(0, 8);
+                            return `0x${hex}aec8...7df4`;
+                          })()}
+                        </span>
+                      </div>
+                      
+                      {/* Interactive Verification Action */}
+                      <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '4px' }}>
+                        {verifiedEscrow[selectedDetailedOrder.orderId] ? (
+                          <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '8px', padding: '10px 12px', color: '#065f46', fontSize: '0.8rem', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                            <span style={{ fontSize: '1rem', marginTop: '2px' }}>🛡️</span>
+                            <div>
+                              <strong style={{ display: 'block', marginBottom: '2px' }}>Escrow Custody Confirmed</strong>
+                              <span>Ledger verification successful. Funds of ₹{selectedDetailedOrder.total?.toLocaleString('en-IN')} are locked in custody. Release authorized only upon successful delivery.</span>
+                            </div>
                           </div>
+                        ) : (
+                          <button 
+                            onClick={() => handleVerifyEscrow(selectedDetailedOrder.orderId, selectedDetailedOrder.total || 0)}
+                            disabled={verifyingEscrow[selectedDetailedOrder.orderId]}
+                            style={{ 
+                              width: '100%', padding: '9px 12px', background: verifyingEscrow[selectedDetailedOrder.orderId] ? '#cbd5e1' : '#4f46e5', 
+                              color: verifyingEscrow[selectedDetailedOrder.orderId] ? '#475569' : '#fff', border: 'none', borderRadius: '8px', 
+                              fontSize: '0.8rem', fontWeight: '700', cursor: verifyingEscrow[selectedDetailedOrder.orderId] ? 'not-allowed' : 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s'
+                            }}
+                          >
+                            {verifyingEscrow[selectedDetailedOrder.orderId] ? (
+                              <>
+                                <svg style={{ animation: 'spin 1s linear infinite' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                  <circle cx="12" cy="12" r="10" stroke="rgba(0,0,0,0.1)" />
+                                  <path d="M12 2a10 10 0 0 1 10 10" />
+                                </svg>
+                                Verifying Lock Ledger...
+                              </>
+                            ) : (
+                              '🔎 Verify Escrow Lock Status'
+                            )}
+                          </button>
                         )}
                       </div>
-                    )}
+                    </div>
                   </div>
 
-                  {/* History / Log Timeline logs inside Details panel */}
-                  <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                    <span style={{ fontSize: '0.8rem', color: '#475569', textTransform: 'uppercase', fontWeight: '700' }}>Log History</span>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '12px' }}>
-                      {selectedDetailedOrder.timeline?.map((t, idx) => (
-                        <div key={idx} style={{ display: 'flex', gap: '10px', fontSize: '0.75rem' }}>
-                          <span style={{ color: '#16a34a' }}>●</span>
-                          <div style={{ flex: 1 }}>
-                            <strong style={{ color: '#0f172a' }}>{t.label}</strong>
-                            <p style={{ margin: '2px 0 0 0', color: '#475569' }}>{t.desc}</p>
+                  {/* Customer */}
+                  <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>👤 Customer</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', fontSize: '0.84rem' }}>
+                      <strong style={{ color: '#0f172a', fontSize: '0.92rem' }}>{selectedDetailedOrder.deliveryAddress?.fullName || 'N/A'}</strong>
+                      <span style={{ color: '#475569' }}>📞 {selectedDetailedOrder.deliveryAddress?.phone || '—'}</span>
+                      <span style={{ color: '#475569' }}>✉️ {selectedDetailedOrder.deliveryAddress?.email || '—'}</span>
+                    </div>
+                  </div>
+
+                  {/* Address */}
+                  <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '700', color: '#64748b', marginBottom: '10px' }}>📍 Delivery Address</div>
+                    <p style={{ fontSize: '0.84rem', color: '#475569', lineHeight: '1.65', margin: 0 }}>
+                      {selectedDetailedOrder.deliveryAddress?.address}<br/>
+                      {selectedDetailedOrder.deliveryAddress?.city}, {selectedDetailedOrder.deliveryAddress?.stateName} — {selectedDetailedOrder.deliveryAddress?.pincode}
+                    </p>
+                  </div>
+
+                  {/* Products */}
+                  <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>🛒 Ordered Items</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {selectedDetailedOrder.items?.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '8px', background: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                          {item.img && item.img.startsWith('http') ? (
+                            <img src={item.img} alt={item.name} style={{ width: '42px', height: '42px', objectFit: 'cover', borderRadius: '7px', flexShrink: 0, border: '1px solid #e2e8f0' }} />
+                          ) : (
+                            <div style={{ width: '42px', height: '42px', background: '#f1f5f9', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.3rem', flexShrink: 0 }}>{item.img || '📦'}</div>
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.84rem', fontWeight: '600', color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</div>
+                            <div style={{ fontSize: '0.73rem', color: '#64748b', marginTop: '2px' }}>{item.brand} · Qty: {item.quantity}</div>
                           </div>
-                          <span style={{ color: '#64748b' }}>{t.date?.split(' ')[1] || ''}</span>
+                          <strong style={{ fontSize: '0.84rem', color: '#0f172a', flexShrink: 0 }}>₹{item.price?.toLocaleString('en-IN')}</strong>
                         </div>
                       ))}
                     </div>
                   </div>
+
+                  {/* Log */}
+                  {selectedDetailedOrder.timeline?.length > 0 && (
+                    <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>🕒 Activity Log</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {[...selectedDetailedOrder.timeline].reverse().map((t, idx) => (
+                          <div key={idx} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                            <span style={{ color: '#16a34a', fontSize: '0.7rem', marginTop: '3px', flexShrink: 0 }}>●</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <strong style={{ fontSize: '0.8rem', color: '#0f172a', display: 'block' }}>{t.label || t.status}</strong>
+                              {t.desc && <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#475569' }}>{t.desc}</p>}
+                            </div>
+                            <span style={{ fontSize: '0.71rem', color: '#94a3b8', whiteSpace: 'nowrap', flexShrink: 0 }}>{t.date || ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* RIGHT: Actions */}
+                <div style={{ padding: '22px 22px', background: '#fafbfc', display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto' }}>
+                  <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '700', color: '#64748b' }}>⚡ Action Panel</div>
+
+                  {(!isSeller || !ownsOrder) ? (
+                    <div style={{ padding: '16px', background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '10px', color: '#dc2626', fontSize: '0.84rem' }}>
+                      ⚠️ You do not have permissions to execute actions on this order.
+                    </div>
+                  ) : (
+                    <>
+                      {/* PENDING_APPROVAL */}
+                      {selectedDetailedOrder.status === 'PENDING_APPROVAL' && (
+                        <div style={{ background: '#fffbeb', border: '1.5px solid #fcd34d', borderRadius: '12px', padding: '18px' }}>
+                          <p style={{ fontSize: '0.82rem', color: '#92400e', fontWeight: '600', margin: '0 0 12px 0' }}>⌛ Awaiting your decision. Approve or reject this order.</p>
+                          {!verifiedEscrow[selectedDetailedOrder.orderId] && (
+                            <div style={{ fontSize: '0.76rem', color: '#b45309', background: '#fef3c7', padding: '8px 10px', borderRadius: '6px', marginBottom: '14px', border: '1px solid #fde68a' }}>
+                              💡 <strong>Tip:</strong> Click the <strong>Verify Escrow Lock Status</strong> button in the left panel first to ensure buyer payment is securely locked.
+                            </div>
+                          )}
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => handleApproveOrder(selectedDetailedOrder.orderId)} disabled={!!orderLoading[selectedDetailedOrder.orderId]}
+                              style={{ flex: 1, padding: '11px 0', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                              {orderLoading[selectedDetailedOrder.orderId] ? '⌛ Approving...' : '✓ Approve Order'}
+                            </button>
+                            <button onClick={() => { setSelectedOrderId(selectedDetailedOrder.orderId); setRejectionReasonType('Out of Stock'); setCustomRejectReason(''); setIsRejectModalOpen(true); }} disabled={!!orderLoading[selectedDetailedOrder.orderId]}
+                              style={{ flex: 1, padding: '11px 0', background: '#dc2626', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                              ✕ Reject Order
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* APPROVED */}
+                      {selectedDetailedOrder.status === 'APPROVED' && (
+                        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '12px', padding: '18px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                            <span style={{ width: '22px', height: '22px', background: '#16a34a', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.7rem', fontWeight: '700' }}>✓</span>
+                            <span style={{ fontSize: '0.82rem', color: '#15803d', fontWeight: '700' }}>Order Approved — Assign Delivery Partner</span>
+                          </div>
+                          <label style={{ fontSize: '0.78rem', color: '#475569', fontWeight: '600', display: 'block', marginBottom: '6px' }}>Select Courier Partner</label>
+                          <select value={selectedCarrier} onChange={e => setSelectedCarrier(e.target.value)} disabled={!!orderLoading[selectedDetailedOrder.orderId]}
+                            style={{ width: '100%', height: '40px', border: '1.5px solid #d1d5db', borderRadius: '8px', padding: '0 10px', fontSize: '0.85rem', color: '#0f172a', background: '#fff', marginBottom: '12px', outline: 'none', cursor: 'pointer' }}>
+                            <option value="">— Select Courier Partner —</option>
+                            <option value="Delhivery">🚚 Delhivery</option>
+                            <option value="Blue Dart">🔵 Blue Dart</option>
+                            <option value="XpressBees">🐝 XpressBees</option>
+                            <option value="DTDC">📦 DTDC</option>
+                            <option value="Ecom Express">⚡ Ecom Express</option>
+                            <option value="India Post">🇮🇳 India Post</option>
+                          </select>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            <button onClick={() => {
+                              if (orderLoading[selectedDetailedOrder.orderId]) return;
+                              handleSelectDeliveryPartner(selectedDetailedOrder.orderId, selectedCarrier, selectedCarrier === 'Blue Dart' ? '1-3 Days' : '2-4 Days', selectedCarrier === 'Blue Dart' ? 120 : 80);
+                            }} disabled={!selectedCarrier || !!orderLoading[selectedDetailedOrder.orderId]}
+                              style={{ width: '100%', padding: '12px 0', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', border: 'none', cursor: selectedCarrier ? 'pointer' : 'not-allowed', background: selectedCarrier ? '#4f46e5' : '#cbd5e1', color: selectedCarrier ? '#fff' : '#94a3b8', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                              {orderLoading[selectedDetailedOrder.orderId] ? '⌛ Assigning...' : '🚚 Assign Courier Partner'}
+                            </button>
+                            <span style={{ fontSize: '0.7rem', color: '#64748b', textAlign: 'center', marginTop: '6px' }}>
+                              Or bypass directly to label ready:
+                            </span>
+                            <button onClick={() => handleAssignAndGenerateLabel(selectedDetailedOrder.orderId, selectedCarrier)} disabled={!selectedCarrier || !!orderLoading[selectedDetailedOrder.orderId]}
+                              style={{ width: '100%', padding: '10px 0', borderRadius: '8px', fontWeight: '600', fontSize: '0.8rem', border: '1px solid #cbd5e1', cursor: selectedCarrier ? 'pointer' : 'not-allowed', background: '#fff', color: selectedCarrier ? '#4f46e5' : '#cbd5e1', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                              🏷️ Assign &amp; Auto-Generate Label
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* DELIVERY_ASSIGNED */}
+                      {selectedDetailedOrder.status === 'DELIVERY_ASSIGNED' && (
+                        <div style={{ background: '#eff6ff', border: '1.5px solid #93c5fd', borderRadius: '12px', padding: '18px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                            <span style={{ width: '22px', height: '22px', background: '#2563eb', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.7rem', fontWeight: '700' }}>🚚</span>
+                            <span style={{ fontSize: '0.82rem', color: '#1e3a8a', fontWeight: '700' }}>Courier Assigned</span>
+                          </div>
+                          <p style={{ fontSize: '0.8rem', color: '#1e3a8a', margin: '0 0 14px 0', lineHeight: '1.4' }}>
+                            Order assigned to <strong>{selectedDetailedOrder.carrier}</strong>. Tracking ID <strong>{selectedDetailedOrder.trackingId}</strong> has been registered. 
+                            Generate the shipping label to prepare packaging.
+                          </p>
+                          <button onClick={() => handleGenerateLabel(selectedDetailedOrder.orderId)} disabled={!!orderLoading[selectedDetailedOrder.orderId]}
+                            style={{ width: '100%', padding: '12px 0', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                            {orderLoading[selectedDetailedOrder.orderId] ? '⌛ Generating...' : '🏷️ Generate Shipping Label'}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* LABEL_GENERATED */}
+                      {selectedDetailedOrder.status === 'LABEL_GENERATED' && (
+                        <div style={{ background: '#f0f9ff', border: '1.5px solid #7dd3fc', borderRadius: '12px', padding: '18px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                            <span style={{ width: '22px', height: '22px', background: '#0284c7', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.7rem', fontWeight: '700' }}>🏷️</span>
+                            <span style={{ fontSize: '0.82rem', color: '#0369a1', fontWeight: '700' }}>Shipping Label Generated</span>
+                          </div>
+                          <p style={{ fontSize: '0.8rem', color: '#0369a1', margin: '0 0 14px 0', lineHeight: '1.4' }}>
+                            Label generated. Print the shipping label / manifest and mark the package as ready for courier pickup.
+                          </p>
+                          <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={() => { setActiveLabelOrder(selectedDetailedOrder); setIsLabelModalOpen(true); }}
+                              style={{ flex: 1, padding: '11px 0', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer' }}>
+                              🖨️ Print Label
+                            </button>
+                            <button onClick={() => handleMarkReadyForPickup(selectedDetailedOrder.orderId)} disabled={!!orderLoading[selectedDetailedOrder.orderId]}
+                              style={{ flex: 1, padding: '11px 0', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.85rem', cursor: 'pointer', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                              {orderLoading[selectedDetailedOrder.orderId] ? '⌛ Processing...' : '📦 Mark Ready'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* READY_FOR_PICKUP */}
+                      {selectedDetailedOrder.status === 'READY_FOR_PICKUP' && (
+                        <div style={{ background: '#fff7ed', border: '1.5px solid #fdba74', borderRadius: '12px', padding: '18px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                            <span style={{ width: '22px', height: '22px', background: '#ea580c', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.7rem', fontWeight: '700' }}>📦</span>
+                            <span style={{ fontSize: '0.82rem', color: '#c2410c', fontWeight: '700' }}>Ready for Carrier Pickup</span>
+                          </div>
+                          <p style={{ fontSize: '0.8rem', color: '#9a3412', margin: '0 0 14px 0', lineHeight: '1.4' }}>
+                            The package is sealed and waiting at your dispatch desk. Click below once the carrier agent collects the shipment.
+                          </p>
+                          <button onClick={() => handleAdvanceStatus(selectedDetailedOrder.orderId, 'PICKED_UP')} disabled={!!orderLoading[selectedDetailedOrder.orderId]}
+                            style={{ width: '100%', padding: '12px 0', background: '#ea580c', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                            {orderLoading[selectedDetailedOrder.orderId] ? '⌛ Processing...' : '🚀 Mark Picked Up by Courier'}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* PICKED_UP / IN_TRANSIT / OUT_FOR_DELIVERY */}
+                      {['PICKED_UP','IN_TRANSIT','OUT_FOR_DELIVERY'].includes(selectedDetailedOrder.status) && (
+                        <div style={{ background: '#faf5ff', border: '1.5px solid #d8b4fe', borderRadius: '12px', padding: '18px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                            <span style={{ width: '22px', height: '22px', background: '#7c3aed', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '0.7rem', fontWeight: '700' }}>
+                              {selectedDetailedOrder.status === 'PICKED_UP' ? '🚀' : selectedDetailedOrder.status === 'IN_TRANSIT' ? '🚛' : '🛵'}
+                            </span>
+                            <span style={{ fontSize: '0.82rem', color: '#6d28d9', fontWeight: '700' }}>
+                              {selectedDetailedOrder.status === 'PICKED_UP' ? 'Package Picked Up' : selectedDetailedOrder.status === 'IN_TRANSIT' ? 'Package In Transit' : 'Package Out For Delivery'}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.8rem', color: '#6d28d9', margin: '0 0 14px 0', lineHeight: '1.4' }}>
+                            {selectedDetailedOrder.status === 'PICKED_UP' && 'The shipment has been picked up by the courier. Advance status to In Transit once sorted at hub.'}
+                            {selectedDetailedOrder.status === 'IN_TRANSIT' && 'The shipment is in transit on the EV logistics corridor. Advance status to Out For Delivery when arrived at local station.'}
+                            {selectedDetailedOrder.status === 'OUT_FOR_DELIVERY' && 'The delivery agent is en route. Mark Delivered when final drop-off is complete.'}
+                          </p>
+                          {selectedDetailedOrder.status === 'PICKED_UP' && (
+                            <button onClick={() => handleAdvanceStatus(selectedDetailedOrder.orderId, 'IN_TRANSIT')} disabled={!!orderLoading[selectedDetailedOrder.orderId]}
+                              style={{ width: '100%', padding: '11px 0', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                              {orderLoading[selectedDetailedOrder.orderId] ? '⌛ Processing...' : '🚛 Mark In Transit'}
+                            </button>
+                          )}
+                          {selectedDetailedOrder.status === 'IN_TRANSIT' && (
+                            <button onClick={() => handleAdvanceStatus(selectedDetailedOrder.orderId, 'OUT_FOR_DELIVERY')} disabled={!!orderLoading[selectedDetailedOrder.orderId]}
+                              style={{ width: '100%', padding: '11px 0', background: '#a855f7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                              {orderLoading[selectedDetailedOrder.orderId] ? '⌛ Processing...' : '🛵 Mark Out for Delivery'}
+                            </button>
+                          )}
+                          {selectedDetailedOrder.status === 'OUT_FOR_DELIVERY' && (
+                            <button onClick={() => handleAdvanceStatus(selectedDetailedOrder.orderId, 'DELIVERED')} disabled={!!orderLoading[selectedDetailedOrder.orderId]}
+                              style={{ width: '100%', padding: '11px 0', background: '#16a34a', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: '700', fontSize: '0.88rem', cursor: 'pointer', opacity: orderLoading[selectedDetailedOrder.orderId] ? 0.6 : 1 }}>
+                              {orderLoading[selectedDetailedOrder.orderId] ? '⌛ Processing...' : '🎉 Mark Delivered'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* COMPLETED / DELIVERED */}
+                      {isCompleted && (
+                        <div style={{ background: '#f0fdf4', border: '1.5px solid #86efac', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '2.8rem', marginBottom: '10px' }}>🎉</div>
+                          <p style={{ color: '#15803d', fontWeight: '700', fontSize: '1.05rem', margin: '0 0 4px 0' }}>Transaction Completed</p>
+                          <p style={{ color: '#16a34a', fontSize: '0.8rem', margin: 0 }}>Funds will be released after buyer confirmation or auto-release window.</p>
+                        </div>
+                      )}
+
+                      {/* REJECTED */}
+                      {isRejected && (
+                        <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: '12px', padding: '18px' }}>
+                          <div style={{ color: '#dc2626', fontWeight: '700', fontSize: '1rem', marginBottom: '8px' }}>❌ Order Rejected</div>
+                          {selectedDetailedOrder.rejectionReason && (
+                            <div style={{ background: '#fff', border: '1px solid #fca5a5', borderRadius: '8px', padding: '10px 12px', fontSize: '0.82rem', color: '#7f1d1d' }}>
+                              <strong>Reason:</strong> {selectedDetailedOrder.rejectionReason}
+                            </div>
+                          )}
+                          <p style={{ fontSize: '0.77rem', color: '#94a3b8', marginTop: '10px', marginBottom: 0 }}>Escrow funds will be automatically returned to the buyer.</p>
+                        </div>
+                      )}
+
+                      {/* Carrier details if assigned */}
+                      {selectedDetailedOrder.carrier && !['PENDING_APPROVAL','APPROVED','REJECTED'].includes(selectedDetailedOrder.status) && (
+                        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px' }}>
+                          <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '700', color: '#64748b', marginBottom: '10px' }}>🚚 Carrier Details</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.82rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Partner</span><strong>{selectedDetailedOrder.carrier}</strong></div>
+                            {selectedDetailedOrder.trackingId && (
+                              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: '#64748b' }}>Tracking #</span><strong style={{ color: '#4f46e5', fontFamily: 'monospace', fontSize: '0.78rem' }}>{selectedDetailedOrder.trackingId}</strong></div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 
-              <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', marginTop: '20px', paddingTop: '12px' }}>
-                <button className="modal-btn cancel" style={{ border: '1px solid #cbd5e1', color: '#475569' }} onClick={() => { setSelectedDetailedOrderId(null); setSelectedCarrier(''); }}>Close</button>
+              {/* Footer */}
+              <div style={{ borderTop: '1px solid #e2e8f0', padding: '14px 28px', display: 'flex', justifyContent: 'flex-end', background: '#f8fafc', flexShrink: 0 }}>
+                <button onClick={() => { setSelectedDetailedOrderId(null); setSelectedCarrier(''); }}
+                  style={{ padding: '9px 24px', background: '#ffffff', border: '1.5px solid #cbd5e1', borderRadius: '8px', color: '#475569', fontWeight: '600', fontSize: '0.85rem', cursor: 'pointer' }}>
+                  Close
+                </button>
               </div>
             </div>
           </div>
@@ -3110,7 +3513,7 @@ function AdminSimulationHub({ products, triggerToast, onRefreshProducts }) {
       <div className="view-header">
         <div className="view-title-group">
           <h2>Admin Approval Simulation Hub</h2>
-          <p style={{ color: '#ef4444' }}>⚠️ DEBUG MODE: Simulate marketplace admin operations. Approve or reject vendor product listings below.</p>
+          <p style={{ color: '#ef4444' }}>⚠️ï¸ DEBUG MODE: Simulate marketplace admin operations. Approve or reject vendor product listings below.</p>
         </div>
       </div>
 

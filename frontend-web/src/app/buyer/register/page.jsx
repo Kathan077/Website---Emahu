@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import './buyer-register.css';
-import { registerUser, saveAuthSession } from '@/utils/auth';
+import { registerUser, saveAuthSession, googleLoginUser } from '@/utils/auth';
 
 /**
  * Retail Buyer Registration Component
@@ -23,6 +23,43 @@ export default function BuyerRegister() {
       router.replace('/buyer');
     }
   }, [router]);
+
+  const handleGoogleSignIn = () => {
+    const width = 500;
+    const height = 600;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    
+    const popup = window.open(
+      '/buyer/google-auth?role=buyer',
+      'google_auth_popup',
+      `width=${width},height=${height},top=${top},left=${left}`
+    );
+
+    const handleMessage = async (event) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'GOOGLE_AUTH_SUCCESS' && event.data?.role === 'buyer') {
+        window.removeEventListener('message', handleMessage);
+        const { email, name, role } = event.data;
+        setLoading(true);
+        setErrors({});
+        try {
+          const data = await googleLoginUser({ email, name, role });
+          saveAuthSession(data, 'buyer');
+          setLoading(false);
+          setSuccess(true);
+          setTimeout(() => {
+            router.replace('/buyer');
+          }, 1000);
+        } catch (err) {
+          setLoading(false);
+          setErrors({ general: err.message || 'Google Sign-In failed' });
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+  };
 
   // Form State Values
   const [formData, setFormData] = useState({
@@ -305,6 +342,45 @@ export default function BuyerRegister() {
                       </svg>
                     </button>
                   </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', margin: '16px 0', gap: '10px' }}>
+                    <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.08)' }} />
+                    <span style={{ fontSize: '0.75rem', color: '#718096', textTransform: 'uppercase', letterSpacing: '0.5px' }}>or</span>
+                    <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(0,0,0,0.08)' }} />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={loading}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      width: '100%',
+                      padding: '12px',
+                      backgroundColor: '#fff',
+                      border: '1px solid #dadce0',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontSize: '0.95rem',
+                      fontWeight: '500',
+                      color: '#3c4043',
+                      transition: 'background-color 0.2s',
+                      marginBottom: '16px'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 18 18">
+                      <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                      <path d="M9 18c2.43 0 4.47-.806 5.96-2.18l-2.908-2.258c-.806.54-1.837.86-3.052.86-2.352 0-4.341-1.587-5.05-3.72H1.026v2.332C2.51 15.98 5.534 18 9 18z" fill="#34A853"/>
+                      <path d="M3.95 10.702c-.18-.54-.282-1.117-.282-1.702s.102-1.162.282-1.702V4.966H1.026C.371 6.273 0 7.761 0 9s.371 2.727 1.026 4.034l2.924-2.332z" fill="#FBBC05"/>
+                      <path d="M9 3.58c1.32 0 2.5.454 3.435 1.348l2.58-2.58C13.464.896 11.428 0 9 0 5.534 0 2.51 2.02 1.026 4.966L3.95 7.298C4.659 5.165 6.648 3.58 9 3.58z" fill="#EA4335"/>
+                    </svg>
+                    Continue with Google
+                  </button>
 
                   <div style={{ textAlign: 'center', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: '20px', marginTop: '24px', fontSize: '0.85rem' }}>
                     <span style={{ color: '#718096' }}>Already registered? </span>

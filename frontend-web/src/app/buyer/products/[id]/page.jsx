@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import BuyerHeader from '@/components/buyer_home/buyer_header';
+import { logAnalyticsEvent } from '@/utils/analytics';
 import './product-detail.css';
 
 const ALL_PRODUCTS = [];
@@ -54,6 +55,16 @@ export default function ProductDetailPage() {
   const [added,       setAdded]       = useState(false);
   const [activeTab,   setActiveTab]   = useState('desc');
 
+  // ── Review system state ──
+  const [hasPurchased,   setHasPurchased]   = useState(false);
+  const [userReviews,    setUserReviews]    = useState([]);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating,   setReviewRating]   = useState(5);
+  const [reviewHover,    setReviewHover]    = useState(0);
+  const [reviewText,     setReviewText]     = useState('');
+  const [reviewSubmitted,setReviewSubmitted]= useState(false);
+  const [reviewError,    setReviewError]    = useState('');
+
   // Sync wishlist on mount
   useEffect(() => {
     try {
@@ -66,6 +77,98 @@ export default function ProductDetailPage() {
       console.error(e);
     }
   }, [id]);
+
+  // ── Check if the current user has purchased this product ──
+  useEffect(() => {
+    const checkPurchase = async () => {
+      try {
+        // Get buyer/guest identity
+        let buyerUserId = '';
+        const buyerUserStr = localStorage.getItem('emahu_buyer_user');
+        if (buyerUserStr) {
+          try { buyerUserId = JSON.parse(buyerUserStr).id || JSON.parse(buyerUserStr)._id || ''; } catch (_) {}
+        }
+        if (!buyerUserId) buyerUserId = localStorage.getItem('emahu_guest_id') || '';
+
+        // Try fetching from API first
+        let orders = [];
+        if (buyerUserId) {
+          try {
+            const res = await fetch(`http://localhost:5000/api/orders?userId=${buyerUserId}`);
+            const data = await res.json();
+            if (data.success && data.orders) orders = data.orders;
+          } catch (_) {}
+        }
+
+        // Fallback to localStorage
+        if (orders.length === 0) {
+          const stored = localStorage.getItem('emahu_orders');
+          if (stored) orders = JSON.parse(stored);
+        }
+
+        // Check if any order contains an item matching this product id
+        const bought = orders.some(ord =>
+          ord.items && ord.items.some(item => {
+            const itemId = String(item.id || item._id || item.productId || '');
+            return itemId === String(id);
+          })
+        );
+        setHasPurchased(bought);
+      } catch (e) {
+        console.error('Purchase check error:', e);
+      }
+    };
+    checkPurchase();
+  }, [id]);
+
+  // ── Load user reviews from localStorage for this product ──
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`emahu_reviews_${id}`);
+      if (stored) setUserReviews(JSON.parse(stored));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [id]);
+
+  // ── Handle review submission ──
+  const handleSubmitReview = (e) => {
+    e.preventDefault();
+    if (!reviewText.trim()) { setReviewError('Please write your review text.'); return; }
+    if (reviewRating < 1)   { setReviewError('Please select a star rating.');  return; }
+
+    // Build review buyer name
+    let buyerName = 'Verified Buyer';
+    try {
+      const u = JSON.parse(localStorage.getItem('emahu_buyer_user') || '{}');
+      if (u.name) buyerName = u.name.split(' ')[0] + ' ' + (u.name.split(' ')[1]?.[0] || '') + '.';
+    } catch (_) {}
+
+    const newReview = {
+      id: Date.now(),
+      name: buyerName,
+      rating: reviewRating,
+      date: new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }),
+      text: reviewText.trim(),
+      tags: ['Verified Purchase'],
+      color: '#4169e1',
+      verified: true,
+      userSubmitted: true
+    };
+
+    const updated = [newReview, ...userReviews];
+    setUserReviews(updated);
+    localStorage.setItem(`emahu_reviews_${id}`, JSON.stringify(updated));
+
+    // Reset form
+    setReviewText('');
+    setReviewRating(5);
+    setReviewHover(0);
+    setReviewError('');
+    setReviewSubmitted(true);
+    setShowReviewForm(false);
+    setTimeout(() => setReviewSubmitted(false), 4000);
+  };
 
   // Load product details from database
   useEffect(() => {
@@ -108,6 +211,13 @@ export default function ProductDetailPage() {
             onSale: p.comparePrice ? (p.price < p.comparePrice) : false,
             seller: p.seller
           });
+
+          // Log analytics event for product view
+          logAnalyticsEvent({
+            type: 'view',
+            productId: p.id || p._id,
+            sellerId: p.seller?._id || p.seller?.id || p.seller
+          });
         }
       } catch (err) {
         console.error('Error fetching database product:', err);
@@ -131,6 +241,13 @@ export default function ProductDetailPage() {
         });
         localStorage.setItem('emahu_cart', JSON.stringify(storedCart));
         window.dispatchEvent(new Event('storage'));
+
+        // Log analytics event
+        logAnalyticsEvent({
+          type: 'add_to_cart',
+          productId: product.id,
+          sellerId: product.seller?._id || product.seller?.id || product.seller
+        });
       }
       setAdded(true);
       setTimeout(() => setAdded(false), 2000);
@@ -152,6 +269,13 @@ export default function ProductDetailPage() {
         });
         localStorage.setItem('emahu_cart', JSON.stringify(storedCart));
         window.dispatchEvent(new Event('storage'));
+
+        // Log analytics event
+        logAnalyticsEvent({
+          type: 'add_to_cart',
+          productId: product.id,
+          sellerId: product.seller?._id || product.seller?.id || product.seller
+        });
       }
       router.push('/buyer/checkout');
     } catch (err) {
@@ -410,7 +534,7 @@ export default function ProductDetailPage() {
               <div>
                 <div className="pd-reviews-big-score">{product.rating}</div>
                 <div><Stars rating={product.rating} size={16}/></div>
-                <div className="pd-reviews-big-label">{product.reviews.toLocaleString()} reviews</div>
+                <div className="pd-reviews-big-label">{(product.reviews + userReviews.length).toLocaleString()} reviews</div>
               </div>
               <div className="pd-bar-rows">
                 {RATING_DIST.map(r => (
@@ -423,11 +547,132 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
+            {/* ── Write Review CTA — only for verified purchasers ── */}
+            <div style={{ marginBottom: '28px', display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+              {hasPurchased ? (
+                <>
+                  {reviewSubmitted && (
+                    <span style={{ fontSize: '0.82rem', color: '#10b981', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                      Review submitted! Thank you.
+                    </span>
+                  )}
+                  <button
+                    onClick={() => { setShowReviewForm(v => !v); setReviewError(''); }}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '8px',
+                      padding: '10px 20px', borderRadius: '10px',
+                      background: showReviewForm ? '#f3f4f6' : '#0d0d0d',
+                      color: showReviewForm ? '#374151' : '#ffffff',
+                      border: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                      fontSize: '0.85rem', fontWeight: '700', transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+                    </svg>
+                    {showReviewForm ? 'Cancel' : 'Write a Review'}
+                  </button>
+                </>
+              ) : (
+                <span style={{ fontSize: '0.82rem', color: '#9ca3af', display: 'flex', alignItems: 'center', gap: '6px', background: '#f9fafb', padding: '8px 16px', borderRadius: '8px', border: '1px solid #f0f0f0' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  Purchase this product to leave a review
+                </span>
+              )}
+            </div>
+
+            {/* ── Inline review form ── */}
+            {showReviewForm && hasPurchased && (
+              <form onSubmit={handleSubmitReview} style={{
+                background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: '14px',
+                padding: '24px', marginBottom: '28px', animation: 'fadeUp 0.3s ease both'
+              }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: '#0d0d0d', marginBottom: '16px' }}>Share your experience</h4>
+
+                {/* Star picker */}
+                <div style={{ marginBottom: '16px' }}>
+                  <p style={{ fontSize: '0.78rem', fontWeight: '600', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '10px' }}>Your Rating</p>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {[1,2,3,4,5].map(s => (
+                      <button
+                        key={s} type="button"
+                        onMouseEnter={() => setReviewHover(s)}
+                        onMouseLeave={() => setReviewHover(0)}
+                        onClick={() => setReviewRating(s)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
+                          transition: 'transform 0.15s'
+                        }}
+                      >
+                        <svg width="28" height="28" viewBox="0 0 24 24">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
+                            fill={s <= (reviewHover || reviewRating) ? '#f59e0b' : '#e5e7eb'}
+                            style={{ transition: 'fill 0.15s' }}
+                          />
+                        </svg>
+                      </button>
+                    ))}
+                    <span style={{ marginLeft: '8px', fontSize: '0.85rem', color: '#6b7280', alignSelf: 'center' }}>
+                      {reviewRating === 5 ? 'Excellent' : reviewRating === 4 ? 'Good' : reviewRating === 3 ? 'Average' : reviewRating === 2 ? 'Poor' : 'Very Poor'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Review text */}
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: '600', color: '#374151', textTransform: 'uppercase', letterSpacing: '0.8px', display: 'block', marginBottom: '8px' }}>Your Review</label>
+                  <textarea
+                    value={reviewText}
+                    onChange={e => { setReviewText(e.target.value); setReviewError(''); }}
+                    placeholder="Share what you liked, didn't like, or anything buyers should know..."
+                    rows={4}
+                    style={{
+                      width: '100%', padding: '12px 14px', border: '1.5px solid #e5e7eb',
+                      borderRadius: '10px', fontSize: '0.88rem', lineHeight: '1.6',
+                      fontFamily: 'Inter, sans-serif', color: '#0d0d0d', resize: 'vertical',
+                      background: '#ffffff', outline: 'none', boxSizing: 'border-box',
+                      transition: 'border-color 0.2s'
+                    }}
+                    onFocus={e => e.target.style.borderColor = '#0d0d0d'}
+                    onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                    required
+                  />
+                </div>
+
+                {reviewError && (
+                  <p style={{ color: '#ef4444', fontSize: '0.8rem', marginBottom: '12px' }}>{reviewError}</p>
+                )}
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button type="submit" style={{
+                    padding: '11px 24px', background: '#0d0d0d', color: '#ffffff',
+                    border: 'none', borderRadius: '8px', fontFamily: 'Inter, sans-serif',
+                    fontSize: '0.85rem', fontWeight: '700', cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#1f1f1f'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = '#0d0d0d'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >
+                    Submit Review
+                  </button>
+                  <button type="button" onClick={() => setShowReviewForm(false)} style={{
+                    padding: '11px 20px', background: 'transparent', color: '#6b7280',
+                    border: '1.5px solid #e5e7eb', borderRadius: '8px', fontFamily: 'Inter, sans-serif',
+                    fontSize: '0.85rem', fontWeight: '600', cursor: 'pointer'
+                  }}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* ── Review cards: user reviews first, then static ── */}
             <div className="pd-review-cards">
-              {REVIEWS.map(r => (
-                <div key={r.id} className="pd-review-card">
+              {[...userReviews, ...REVIEWS].map((r, idx) => (
+                <div key={r.id || idx} className="pd-review-card" style={r.userSubmitted ? { border: '1.5px solid #12b7b2', background: 'rgba(18,183,178,0.02)' } : {}}>
                   <div className="pd-review-head">
-                    <div className="pd-review-avatar" style={{background:r.color}}>{r.name[0]}</div>
+                    <div className="pd-review-avatar" style={{background: r.color || '#4169e1'}}>{r.name[0]}</div>
                     <div>
                       <div className="pd-review-name">{r.name}</div>
                       <div className="pd-review-date">{r.date}</div>

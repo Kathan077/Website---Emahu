@@ -9,7 +9,7 @@ const ALL_PRODUCTS = [];
 
 export default function CheckoutPage() {
   const [cartItems, setCartItems] = useState([]);
-  const [shippingSpeed, setShippingSpeed] = useState('express'); // standard | express
+  const [shippingSpeed, setShippingSpeed] = useState('standard'); // standard | express
   const [escrowMethod, setEscrowMethod] = useState('wallet'); // wallet | card | upi
   const [checkoutStep, setCheckoutStep] = useState('idle'); // idle | securing | success
   const [generatedOrderId, setGeneratedOrderId] = useState('');
@@ -23,6 +23,7 @@ export default function CheckoutPage() {
   const [city, setCity] = useState('');
   const [stateName, setStateName] = useState('');
   const [pincode, setPincode] = useState('');
+  const [addressType, setAddressType] = useState('saved'); // saved | manual
 
   // Load items from localstorage and backend
   useEffect(() => {
@@ -75,8 +76,30 @@ export default function CheckoutPage() {
           }).filter(Boolean);
           setCartItems(matched);
         }
+
+        // Auto-fill profile address if logged in
+        const buyerUserStr = localStorage.getItem('emahu_buyer_user');
+        if (buyerUserStr) {
+          const user = JSON.parse(buyerUserStr);
+          if (user) {
+            setFullName(user.name || '');
+            setEmail(user.email || '');
+            setPhone(user.phone || '');
+            setAddress(user.address || '');
+            if (user.address && user.address.trim()) {
+              setAddressType('saved');
+            } else {
+              setAddressType('manual');
+            }
+          } else {
+            setAddressType('manual');
+          }
+        } else {
+          setAddressType('manual');
+        }
       } catch (err) {
         console.error(err);
+        setAddressType('manual');
       }
     };
 
@@ -84,7 +107,7 @@ export default function CheckoutPage() {
   }, []);
 
   const subtotal = cartItems.reduce((acc, p) => acc + (p.price * p.quantity), 0);
-  const shippingFee = subtotal === 0 ? 0 : (shippingSpeed === 'express' ? (subtotal > 50000 ? 0 : 199) : (subtotal > 50000 ? 0 : 99));
+  const shippingFee = subtotal === 0 ? 0 : (shippingSpeed === 'express' ? 199 : 99);
   const taxAmount = Math.round(subtotal * 0.18); // 18% Escrow Tax
   const grandTotal = subtotal + shippingFee + taxAmount;
 
@@ -92,18 +115,30 @@ export default function CheckoutPage() {
     e.preventDefault();
     if (cartItems.length === 0) return;
 
-    // Validate fields
-    if (
-      !fullName.trim() ||
-      !phone.trim() ||
-      !email.trim() ||
-      !address.trim() ||
-      !city.trim() ||
-      !stateName.trim() ||
-      !pincode.trim()
-    ) {
-      alert('Please fill out all address and contact fields.');
-      return;
+    // Validate fields based on addressType selected
+    if (addressType === 'manual') {
+      if (
+        !fullName.trim() ||
+        !phone.trim() ||
+        !email.trim() ||
+        !address.trim() ||
+        !city.trim() ||
+        !stateName.trim() ||
+        !pincode.trim()
+      ) {
+        alert('Please fill out all address and contact fields.');
+        return;
+      }
+    } else {
+      if (
+        !fullName.trim() ||
+        !phone.trim() ||
+        !email.trim() ||
+        !address.trim()
+      ) {
+        alert('Please ensure your profile has a valid name, phone, email, and address saved.');
+        return;
+      }
     }
 
     // Save unique sellers for success screen before clearing cartItems
@@ -121,48 +156,65 @@ export default function CheckoutPage() {
         const storedOrders = JSON.parse(storedOrdersStr);
         const notifications = JSON.parse(localStorage.getItem('emahu_notifications') || '[]');
 
-        // Group cart items by seller
-        const itemsBySeller = {};
-        cartItems.forEach(item => {
-          // Use all available seller identifiers to build the sellerId key
-          const sellerId = item.seller?._id || item.seller?.id || item.seller?.email || 'default_seller';
-          if (!itemsBySeller[sellerId]) {
-            itemsBySeller[sellerId] = [];
+        let buyerUserId = '';
+        const buyerUserStr = localStorage.getItem('emahu_buyer_user');
+        if (buyerUserStr) {
+          try {
+            buyerUserId = JSON.parse(buyerUserStr).id || JSON.parse(buyerUserStr)._id || '';
+          } catch (e) {}
+        }
+        if (!buyerUserId) {
+          let guestId = localStorage.getItem('emahu_guest_id');
+          if (!guestId) {
+            guestId = 'guest_' + Math.floor(100000 + Math.random() * 900000) + '_' + Date.now();
+            localStorage.setItem('emahu_guest_id', guestId);
           }
-          itemsBySeller[sellerId].push(item);
-        });
+          buyerUserId = guestId;
+        }
 
+        const billId = `BILL_${Math.floor(100000 + Math.random() * 900000)}`;
         const placedOrderIds = [];
+        const orderObjects = [];
 
-        Object.entries(itemsBySeller).forEach(([sellerId, items]) => {
+        cartItems.forEach((item, index) => {
           const orderId = `EMH_${Math.floor(100000 + Math.random() * 900000)}`;
           placedOrderIds.push(orderId);
 
-          const sellerSubtotal = items.reduce((acc, p) => acc + (p.price * p.quantity), 0);
-          const sellerShippingFee = sellerSubtotal === 0 ? 0 : (shippingSpeed === 'express' ? (sellerSubtotal > 50000 ? 0 : 199) : (sellerSubtotal > 50000 ? 0 : 99));
-          const sellerTaxAmount = Math.round(sellerSubtotal * 0.18);
-          const sellerGrandTotal = sellerSubtotal + sellerShippingFee + sellerTaxAmount;
+          const subtotal = item.price * item.quantity;
+          const shippingFee = subtotal === 0 ? 0 : (shippingSpeed === 'express' ? 199 : 99);
+          const taxAmount = Math.round(subtotal * 0.18);
+          const grandTotal = subtotal + shippingFee + taxAmount;
 
-          // Capture the actual seller object from the first item in this group
-          const sellerObj = items[0]?.seller || null;
+          const sellerObj = item.seller || null;
+          let sellerId = 'default_seller';
+          let sellerEmail = null;
+          if (sellerObj) {
+            if (typeof sellerObj === 'string') {
+              sellerId = sellerObj;
+            } else if (typeof sellerObj === 'object') {
+              sellerId = sellerObj._id || sellerObj.id || 'default_seller';
+              sellerEmail = sellerObj.email || null;
+            }
+          }
 
-          storedOrders.push({
+          const newOrderPayload = {
             orderId: orderId,
-            // Store seller identity with all possible ID formats for reliable dashboard matching
-            sellerId: sellerObj?._id || sellerObj?.id || sellerId,
-            sellerEmail: sellerObj?.email || null,
-            userId: localStorage.getItem('emahu_buyer_user') ? JSON.parse(localStorage.getItem('emahu_buyer_user')).id : 'guest_buyer',
+            billId: billId,
+            sellerId: sellerId,
+            sellerEmail: sellerEmail,
+            userId: buyerUserId,
             date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-            items: items.map(p => ({
-              productId: p.id,        // ← critical: used by seller dashboard to match by product ownership
-              name: p.name,
-              price: p.price,
-              quantity: p.quantity,
-              brand: p.brand,
-              img: p.img,
-              seller: p.seller || { name: p.brand || 'Emahu Seller', email: 'support@emahu.com', phone: '+91 99999 99999' }
-            })),
-            total: sellerGrandTotal,
+            createdAt: new Date().toISOString(),
+            items: [{
+              productId: item.id || item._id,
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+              brand: item.brand,
+              img: item.img,
+              seller: item.seller || { name: item.brand || 'Emahu Seller', email: 'support@emahu.com', phone: '+91 99999 99999' }
+            }],
+            total: grandTotal,
             status: 'PENDING_APPROVAL',
             timeline: [
               { status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: '⏳ Waiting for Seller Approval', date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }
@@ -172,25 +224,27 @@ export default function CheckoutPage() {
               phone,
               email,
               address,
-              city,
-              stateName,
-              pincode
+              city: addressType === 'saved' ? 'Profile City' : city,
+              stateName: addressType === 'saved' ? 'Profile State' : stateName,
+              pincode: addressType === 'saved' ? 'Profile Zip' : pincode
             },
             shippingSpeed,
             escrowMethod
-          });
+          };
+
+          orderObjects.push(newOrderPayload);
 
           // Push Notifications
           notifications.unshift({
-            id: `notif_${Date.now()}_buyer_${orderId}`,
+            id: `notif_${Date.now()}_buyer_${orderId}_${index}`,
             title: 'Payment Success',
-            message: `Your payment of ₹${sellerGrandTotal.toLocaleString('en-IN')} has been locked. Waiting for seller approval for Order #${orderId}.`,
+            message: `Your payment of ₹${grandTotal.toLocaleString('en-IN')} has been locked. Waiting for seller approval for Order #${orderId}.`,
             role: 'buyer',
             date: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
             read: false
           });
           notifications.unshift({
-            id: `notif_${Date.now()}_seller_${orderId}`,
+            id: `notif_${Date.now()}_seller_${orderId}_${index}`,
             title: 'New Order Received',
             message: `New order received. Approval required for Order #${orderId}.`,
             role: 'seller',
@@ -199,20 +253,46 @@ export default function CheckoutPage() {
           });
         });
 
-        setGeneratedOrderId(placedOrderIds.join(', '));
-        localStorage.setItem('emahu_orders', JSON.stringify(storedOrders));
-        localStorage.setItem('emahu_notifications', JSON.stringify(notifications));
+        // Insert into database and await it
+        (async () => {
+          try {
+            for (const orderData of orderObjects) {
+              const res = await fetch('http://localhost:5000/api/orders', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(orderData)
+              });
+              const data = await res.json();
+              if (!data.success) {
+                throw new Error(data.error || 'Failed to insert order into database');
+              }
+            }
+
+            // Sync to local storage
+            orderObjects.forEach(o => storedOrders.push(o));
+            setGeneratedOrderId(placedOrderIds.join(', '));
+            localStorage.setItem('emahu_orders', JSON.stringify(storedOrders));
+            localStorage.setItem('emahu_notifications', JSON.stringify(notifications));
+
+            // Step 3: Clear Cart
+            setCartItems([]);
+            localStorage.setItem('emahu_cart', JSON.stringify([]));
+            window.dispatchEvent(new Event('storage'));
+
+            // Move to success step
+            setCheckoutStep('success');
+          } catch (dbErr) {
+            console.error('DATABASE INSERT FAILURE:', dbErr);
+            alert('Failed to place order: Database connection error. Please try again.');
+            setCheckoutStep('idle');
+          }
+        })();
       } catch (err) {
         console.error(err);
+        setCheckoutStep('idle');
       }
-
-      // Step 3: Clear Cart
-      setCartItems([]);
-      localStorage.setItem('emahu_cart', JSON.stringify([]));
-      window.dispatchEvent(new Event('storage'));
-
-      // Move to success step
-      setCheckoutStep('success');
     }, 2800);
   };
 
@@ -295,149 +375,143 @@ export default function CheckoutPage() {
               <h1 className="co-section-title">Secure Escrow Lock Setup</h1>
               
               <form onSubmit={handlePlaceOrder} className="co-form">
-                
-                {/* Section 1: Contact Details */}
-                <div className="co-form-bento">
-                  <div className="co-bento-header">
-                    <span className="co-bento-num">01</span>
-                    <h3>Recipient Contact Details</h3>
+                                {addressType === 'saved' ? (
+                  /* Option A: Saved Profile Address Summary Card */
+                  <div className="co-form-bento">
+                    <div className="co-bento-header">
+                      <span className="co-bento-num">01</span>
+                      <h3>Recipient & Delivery Details</h3>
+                    </div>
+                    
+                    <div style={{ padding: '24px', borderRadius: '12px', background: '#f8fafc', border: '1.5px solid #e2e8f0', marginTop: '16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '800', letterSpacing: '0.5px', color: '#10b981', background: '#ecfdf5', padding: '5px 10px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>✓ USING PROFILE ADDRESS</span>
+                        <button type="button" onClick={() => setAddressType('manual')} style={{ fontSize: '0.82rem', fontWeight: '750', color: '#4169e1', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+                          Use Different / New Address
+                        </button>
+                      </div>
+                      <div style={{ fontSize: '1.05rem', fontWeight: '750', color: '#0f172a', marginBottom: '4px' }}>{fullName}</div>
+                      <div style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '12px' }}>
+                        <span style={{ marginRight: '16px' }}>📞 {phone}</span>
+                        <span>✉ {email}</span>
+                      </div>
+                      <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '12px' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Delivery Address</span>
+                        <strong style={{ fontSize: '0.92rem', color: '#1e293b', lineHeight: '1.5' }}>📍 {address || 'No address saved in profile.'}</strong>
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className="co-input-group">
-                    <label>Full Legal Name</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Rahul Sharma" 
-                      required 
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                    />
-                  </div>
+                ) : (
+                  /* Option B: Manual Input Address Form */
+                  <>
+                    {/* Section 1: Contact Details */}
+                    <div className="co-form-bento">
+                      <div className="co-bento-header">
+                        <span className="co-bento-num">01</span>
+                        <h3>Recipient Contact Details</h3>
+                      </div>
+                      
+                      {localStorage.getItem('emahu_buyer_user') && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '12px' }}>
+                          <button type="button" onClick={() => setAddressType('saved')} style={{ fontSize: '0.82rem', fontWeight: '750', color: '#4169e1', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+                            Use Saved Profile Address
+                          </button>
+                        </div>
+                      )}
+                      
+                      <div className="co-input-group">
+                        <label>Full Legal Name</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Rahul Sharma" 
+                          required 
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                        />
+                      </div>
 
-                  <div className="co-input-row">
-                    <div className="co-input-group">
-                      <label>Active Contact Phone</label>
-                      <input 
-                        type="tel" 
-                        placeholder="e.g. +91 98765 43210" 
-                        required 
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                      />
+                      <div className="co-input-row">
+                        <div className="co-input-group">
+                          <label>Active Contact Phone</label>
+                          <input 
+                            type="tel" 
+                            placeholder="e.g. +91 98765 43210" 
+                            required 
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                          />
+                        </div>
+                        <div className="co-input-group">
+                          <label>Email Address</label>
+                          <input 
+                            type="email" 
+                            placeholder="e.g. rahul@example.com" 
+                            required 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="co-input-group">
-                      <label>Email Address</label>
-                      <input 
-                        type="email" 
-                        placeholder="e.g. rahul@example.com" 
-                        required 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
 
-                {/* Section 2: Delivery Destination */}
-                <div className="co-form-bento">
-                  <div className="co-bento-header">
-                    <span className="co-bento-num">02</span>
-                    <h3>Physical Transit Destination</h3>
-                  </div>
-                  
-                  <div className="co-input-group">
-                    <label>Street Address, Building, Floor</label>
-                    <input 
-                      type="text" 
-                      placeholder="House No, Suite, Colony, Sector..." 
-                      required 
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                    />
-                  </div>
+                    {/* Section 2: Delivery Destination */}
+                    <div className="co-form-bento">
+                      <div className="co-bento-header">
+                        <span className="co-bento-num">02</span>
+                        <h3>Physical Transit Destination</h3>
+                      </div>
+                      
+                      <div className="co-input-group">
+                        <label>Street Address, Building, Floor</label>
+                        <input 
+                          type="text" 
+                          placeholder="House No, Suite, Colony, Sector..." 
+                          required 
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                        />
+                      </div>
 
-                  <div className="co-input-row-three">
-                    <div className="co-input-group">
-                      <label>City</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. New Delhi" 
-                        required 
-                        value={city}
-                        onChange={(e) => setCity(e.target.value)}
-                      />
+                      <div className="co-input-row-three">
+                        <div className="co-input-group">
+                          <label>City</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. New Delhi" 
+                            required 
+                            value={city}
+                            onChange={(e) => setCity(e.target.value)}
+                          />
+                        </div>
+                        <div className="co-input-group">
+                          <label>State</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Delhi" 
+                            required 
+                            value={stateName}
+                            onChange={(e) => setStateName(e.target.value)}
+                          />
+                        </div>
+                        <div className="co-input-group">
+                          <label>Postal Pincode</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. 110001" 
+                            required 
+                            value={pincode}
+                            onChange={(e) => setPincode(e.target.value)}
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <div className="co-input-group">
-                      <label>State</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. Delhi" 
-                        required 
-                        value={stateName}
-                        onChange={(e) => setStateName(e.target.value)}
-                      />
-                    </div>
-                    <div className="co-input-group">
-                      <label>Postal Pincode</label>
-                      <input 
-                        type="text" 
-                        placeholder="e.g. 110001" 
-                        required 
-                        value={pincode}
-                        onChange={(e) => setPincode(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
+                  </>
+                )}
 
-                {/* Section 3: Shipping priority speeds */}
+                {/* Section 3: Escrow Payment Method */}
                 <div className="co-form-bento">
                   <div className="co-bento-header">
                     <span className="co-bento-num">03</span>
-                    <h3>Certified Transit Speed</h3>
-                  </div>
-                  
-                  <div className="co-shipping-options">
-                    
-                    <div 
-                      className={`co-shipping-card ${shippingSpeed === 'standard' ? 'co-shipping-card--selected' : ''}`}
-                      onClick={() => setShippingSpeed('standard')}
-                    >
-                      <div className="co-shipping-radio">
-                        <span className="co-shipping-radio-dot" />
-                      </div>
-                      <div className="co-shipping-details">
-                        <div className="co-shipping-title-row">
-                          <strong>Standard Secured EV Transit</strong>
-                          <span>{subtotal > 50000 ? 'FREE' : '₹99'}</span>
-                        </div>
-                        <p>Eco-friendly localized delivery in 3 - 5 business days. Full transit insurance included.</p>
-                      </div>
-                    </div>
-
-                    <div 
-                      className={`co-shipping-card ${shippingSpeed === 'express' ? 'co-shipping-card--selected' : ''}`}
-                      onClick={() => setShippingSpeed('express')}
-                    >
-                      <div className="co-shipping-radio">
-                        <span className="co-shipping-radio-dot" />
-                      </div>
-                      <div className="co-shipping-details">
-                        <div className="co-shipping-title-row">
-                          <strong>Priority Express EV Transit</strong>
-                          <span>{subtotal > 50000 ? 'FREE' : '₹199'}</span>
-                        </div>
-                        <p>High-priority EV courier routing in 1 - 2 business days. Direct door-to-door vault tracking.</p>
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-
-                {/* Section 4: Escrow Payment Method */}
-                <div className="co-form-bento">
-                  <div className="co-bento-header">
-                    <span className="co-bento-num">04</span>
                     <h3>Secure Payment Escrow Lock Method</h3>
                   </div>
 
@@ -475,7 +549,7 @@ export default function CheckoutPage() {
 
                 {/* Submit button inside mobile viewport, else hidden */}
                 <button type="submit" className="co-btn-submit-mobile">
-                  Lock & Approve Escrow Purchase (₹{grandTotal.toLocaleString('en-IN')})
+                  Buy Now (₹{grandTotal.toLocaleString('en-IN')})
                 </button>
 
               </form>
@@ -557,7 +631,7 @@ export default function CheckoutPage() {
                       <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                     </svg>
-                    <span>Lock & Approve Escrow Purchase</span>
+                    <span>Buy Now</span>
                   </button>
                 )}
 

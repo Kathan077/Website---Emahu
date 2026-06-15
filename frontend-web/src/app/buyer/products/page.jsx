@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import BuyerHeader from '@/components/buyer_home/buyer_header';
+import { logAnalyticsEvent } from '@/utils/analytics';
 import './products.css';
 
 /* ─── DATA ─── */
@@ -123,6 +124,16 @@ export default function ProductsPage() {
         storedCart.push({ id, quantity: 1, color: 'Default', size: 'Default' });
         localStorage.setItem('emahu_cart', JSON.stringify(storedCart));
         window.dispatchEvent(new Event('storage'));
+
+        // Log analytics event
+        const prod = dbProducts.find(p => p.id === id || p._id === id);
+        if (prod) {
+          logAnalyticsEvent({
+            type: 'add_to_cart',
+            productId: id,
+            sellerId: prod.seller?._id || prod.seller?.id || prod.seller
+          });
+        }
       }
     } catch (err) {
       console.error(err);
@@ -208,7 +219,7 @@ export default function ProductsPage() {
       {/* Hero + Category tiles */}
       <div className="bp-hero">
         <h1 className="bp-hero__title">
-          {category === 'All' ? 'All Products' : category}
+          {category === 'All' ? 'All Products' : (CATEGORY_TILES.find(c => c.value === category)?.label || category)}
         </h1>
 
         {/* Category image row */}
@@ -327,11 +338,11 @@ export default function ProductsPage() {
               <span className="bp-filter-group__title">Category</span>
               <svg className="bp-filter-group__arrow bp-filter-group__arrow--open" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
             </div>
-            {['All', ...CATEGORY_TILES.map(c=>c.value)].map(v => (
-              <label key={v} className="bp-check-item" style={{ cursor:'pointer' }} onClick={() => { setCategory(v); setPage(1); }}>
-                <input type="checkbox" readOnly checked={category === v} style={{ accentColor:'#0d0d0d' }} />
-                {v === 'All' ? 'All Products' : v}
-                <span className="bp-check-item__count">{catCount(v)}</span>
+            {[{ label: 'All Products', value: 'All' }, ...CATEGORY_TILES].map(item => (
+              <label key={item.value} className="bp-check-item" style={{ cursor:'pointer' }} onClick={(e) => { e.preventDefault(); setCategory(item.value); setPage(1); }}>
+                <input type="checkbox" readOnly checked={category === item.value} style={{ accentColor:'#0d0d0d' }} />
+                {item.label}
+                <span className="bp-check-item__count">{catCount(item.value)}</span>
               </label>
             ))}
           </div>

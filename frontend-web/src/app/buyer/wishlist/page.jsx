@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import BuyerHeader from '@/components/buyer_home/buyer_header';
+import { logAnalyticsEvent } from '@/utils/analytics';
 import './wishlist.css';
 
 const ALL_PRODUCTS = [];
@@ -12,7 +13,7 @@ function Stars({ rating }) {
     <div className="wl-stars">
       {[1, 2, 3, 4, 5].map(s => (
         <svg key={s} className={`wl-star ${s <= Math.round(rating) ? '' : 'wl-star--empty'}`} viewBox="0 0 24 24">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
         </svg>
       ))}
     </div>
@@ -61,14 +62,19 @@ export default function WishlistPage() {
           // Map ids to matching product objects
           const matched = formattedList.filter(p => ids.includes(p.id.toString()));
           setWishlistItems(matched);
+
+          if (matched.length < ids.length) {
+            localStorage.setItem('emahu_wishlist', JSON.stringify(matched.map(p => p.id)));
+            window.dispatchEvent(new Event('storage'));
+          }
         }
-        
+
         const storedCart = localStorage.getItem('emahu_cart');
         if (storedCart) {
           const parsed = JSON.parse(storedCart);
           setCartAdded(parsed.map(x => typeof x === 'object' ? x.id : x));
         }
-      } catch(e) {
+      } catch (e) {
         console.error(e);
       }
     };
@@ -113,8 +119,15 @@ export default function WishlistPage() {
         storedCart.push({ id: p.id, quantity: 1, color: 'Default', size: 'Default' });
         localStorage.setItem('emahu_cart', JSON.stringify(storedCart));
         window.dispatchEvent(new Event('storage'));
+
+        // Log analytics event
+        logAnalyticsEvent({
+          type: 'add_to_cart',
+          productId: p.id,
+          sellerId: p.seller?._id || p.seller?.id || p.seller
+        });
       }
-    } catch(err) {
+    } catch (err) {
       console.error(err);
     }
 
@@ -126,17 +139,24 @@ export default function WishlistPage() {
   // Move all wishlist items to cart
   const moveAllToCart = () => {
     if (wishlistItems.length === 0) return;
-    
+
     try {
       const storedCartStr = localStorage.getItem('emahu_cart') || '[]';
       const storedCart = JSON.parse(storedCartStr);
-      
+
       wishlistItems.forEach(p => {
         if (!storedCart.some(x => (typeof x === 'object' ? x.id : x) === p.id)) {
           storedCart.push({ id: p.id, quantity: 1, color: 'Default', size: 'Default' });
+
+          // Log analytics event
+          logAnalyticsEvent({
+            type: 'add_to_cart',
+            productId: p.id,
+            sellerId: p.seller?._id || p.seller?.id || p.seller
+          });
         }
       });
-      
+
       localStorage.setItem('emahu_cart', JSON.stringify(storedCart));
       setWishlistItems([]);
       localStorage.setItem('emahu_wishlist', JSON.stringify([]));
@@ -161,7 +181,7 @@ export default function WishlistPage() {
 
       {/* Main Body */}
       <main className="wl-container">
-        
+
         {/* Header Summary */}
         <div className="wl-header">
           <div>
@@ -201,20 +221,20 @@ export default function WishlistPage() {
           <div className="wl-grid">
             {wishlistItems.map(p => (
               <div key={p.id} className="wl-card">
-                
+
                 {/* Image Wrap */}
                 <div className="wl-card__img-wrap">
                   <img src={p.img} alt={p.name} className="wl-card__img" loading="lazy" />
-                  
+
                   {/* Category Chip */}
                   <span className="wl-card__cat-chip">{p.category}</span>
-                  
+
                   {/* Stock Tag */}
                   <span className="wl-card__stock-tag">IN STOCK</span>
 
                   {/* Remove Button */}
-                  <button 
-                    className="wl-card__remove" 
+                  <button
+                    className="wl-card__remove"
                     onClick={() => removeFromWishlist(p.id)}
                     aria-label="Remove item"
                   >
@@ -231,7 +251,7 @@ export default function WishlistPage() {
                   <h3 className="wl-card__name">
                     <Link href={`/buyer/products/${p.id}`}>{p.name}</Link>
                   </h3>
-                  
+
                   <div className="wl-card__rating-row">
                     <Stars rating={p.rating} />
                     <span>({p.reviews})</span>
@@ -250,7 +270,7 @@ export default function WishlistPage() {
 
                 {/* Action CTA Footer */}
                 <div className="wl-card__footer">
-                  <button 
+                  <button
                     className={`wl-card__add-btn ${cartAdded.includes(p.id) ? 'wl-card__add-btn--added' : ''}`}
                     onClick={(e) => handleAddToCart(e, p)}
                   >

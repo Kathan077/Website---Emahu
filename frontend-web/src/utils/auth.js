@@ -63,6 +63,28 @@ export async function loginUser(email, password) {
 }
 
 /**
+ * Authenticate via Google payload
+ */
+export async function googleLoginUser({ email, name, role }) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/google`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ email, name, role }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Google login failed');
+    }
+    return data;
+  } catch (error) {
+    console.error('API Google Login Error:', error.message);
+    throw error;
+  }
+}
+
+/**
  * Clear session cookies on the backend and destroy database token record
  */
 export async function logoutUser() {
