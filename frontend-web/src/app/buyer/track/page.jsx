@@ -31,7 +31,18 @@ function TrackOrderContent() {
             orderId: 'EMH_772918',
             date: '24 May 2026',
             items: [
-              { name: 'Sony WH-1000XM5 Headphones', price: 26999, quantity: 1, brand: 'Sony', img: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80' }
+              {
+                name: 'Sony WH-1000XM5 Headphones',
+                price: 26999,
+                quantity: 1,
+                brand: 'Sony',
+                img: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80',
+                seller: {
+                  name: 'Sony India Retail',
+                  email: 'retail@sony.co.in',
+                  phone: '+91 1800 103 7799'
+                }
+              }
             ],
             total: 31958,
             status: '🔒 ESCROW VAULT SECURED',
@@ -85,41 +96,113 @@ function TrackOrderContent() {
 
   // Determine active tracking steps based on status
   const getTrackingSteps = (status) => {
-    const isDisputed = status.includes('DISPUTED');
-    const isReleased = status.includes('RELEASED');
-
-    return [
+    const isRejected = status === 'REJECTED';
+    
+    const statusOrder = [
+      'PENDING_APPROVAL',
+      'APPROVED',
+      'DELIVERY_ASSIGNED',
+      'LABEL_GENERATED',
+      'READY_FOR_PICKUP',
+      'PICKED_UP',
+      'IN_TRANSIT',
+      'OUT_FOR_DELIVERY',
+      'DELIVERED',
+      'COMPLETED'
+    ];
+    
+    const statusVal = status === '🔓 FUNDS RELEASED' ? 'COMPLETED' : (status === '⚠️ VAULT DISPUTED / FROZEN' ? 'COMPLETED' : status);
+    const currentIndex = statusOrder.indexOf(statusVal);
+    
+    const stepsData = [
       {
-        title: 'Vault Capital Secured 🔒',
-        desc: 'Escrow capital is locked inside safe wallet. Verified by Emahu smart contracts.',
-        date: 'Day 1 - 10:30 AM',
-        state: 'completed'
+        title: 'Payment Completed',
+        desc: '✅ Checkout lock success. Escrow vault capital secured.',
+        status: 'PAYMENT_COMPLETED'
       },
       {
-        title: 'EV Dispatched & Cargo Scan 🚛',
-        desc: 'Product packaged, labeled with tracking seals, and loaded onto electric priority delivery fleet.',
-        date: 'Day 1 - 04:15 PM',
-        state: isDisputed ? 'frozen' : 'completed'
+        title: 'Seller Approval Pending',
+        desc: '⏳ Awaiting approval from merchant listing owner.',
+        status: 'PENDING_APPROVAL'
       },
       {
-        title: 'Transit Route Active 🌐',
-        desc: 'Priority routing active. EV courier en route to recipient transit hub.',
-        date: 'Day 2 - 09:00 AM',
-        state: isDisputed ? 'frozen' : (isReleased ? 'completed' : 'current')
+        title: 'Seller Approved',
+        desc: '✅ Order approved by the seller.',
+        status: 'APPROVED'
       },
       {
-        title: 'Out for Physical Quality Inspection 📦',
-        desc: 'Package reached local dispatch. Delivered to destination. Awaiting buyer quality approval.',
-        date: 'Day 2 - 02:30 PM',
-        state: isDisputed ? 'disputed' : (isReleased ? 'completed' : 'upcoming')
+        title: 'Delivery Partner Assigned',
+        desc: '🚚 Assigning courier partner and printing package manifest tags.',
+        status: 'DELIVERY_ASSIGNED'
       },
       {
-        title: 'Vault Settled & Released 🔓',
-        desc: 'Buyer completed visual inspection. Escrow locked capital unlocked and sent to vendor balance.',
-        date: isReleased ? 'Day 2 - 03:00 PM' : 'Awaiting confirmation',
-        state: isDisputed ? 'frozen' : (isReleased ? 'completed' : 'upcoming')
+        title: 'Shipping Label Generated',
+        desc: '📄 Shipping label has been generated successfully.',
+        status: 'LABEL_GENERATED'
+      },
+      {
+        title: 'Ready For Pickup',
+        desc: '📦 Package is packed and ready for carrier pickup.',
+        status: 'READY_FOR_PICKUP'
+      },
+      {
+        title: 'Picked Up',
+        desc: '📦 Package picked up by courier partner dispatch agent.',
+        status: 'PICKED_UP'
+      },
+      {
+        title: 'In Transit',
+        desc: '🚛 Package in transit via EV highway cargo corridor.',
+        status: 'IN_TRANSIT'
+      },
+      {
+        title: 'Out For Delivery',
+        desc: '🛵 Package is out with local dispatch rider. Arriving today.',
+        status: 'OUT_FOR_DELIVERY'
+      },
+      {
+        title: 'Delivered',
+        desc: '🎉 Package delivered. Awaiting escrow release.',
+        status: 'DELIVERED'
+      },
+      {
+        title: 'Order Completed',
+        desc: '✅ Escrow release confirmation received. Transaction completed.',
+        status: 'COMPLETED'
       }
     ];
+
+    return stepsData.map((step, idx) => {
+      let state = 'upcoming';
+      
+      if (isRejected) {
+        if (idx === 0) state = 'completed';
+        else if (idx === 1) state = 'disputed'; // Rejection indicator color
+      } else {
+        if (idx === 0) {
+          state = 'completed';
+        } else {
+          const statusIdx = idx - 1;
+          if (statusIdx < currentIndex) {
+            state = 'completed';
+          } else if (statusIdx === currentIndex) {
+            state = 'current';
+          }
+        }
+      }
+
+      // Read custom dates or descriptions from timeline array if stored
+      const matchedLog = activeOrder?.timeline?.find(t => t.status === step.status || (step.status === 'COMPLETED' && t.status === 'DELIVERED'));
+      const displayDesc = matchedLog ? matchedLog.desc : step.desc;
+      const displayDate = matchedLog ? matchedLog.date : (state === 'completed' || state === 'current' ? 'Processed' : 'Awaiting update');
+
+      return {
+        title: step.title,
+        desc: displayDesc,
+        date: displayDate,
+        state
+      };
+    });
   };
 
   return (
@@ -189,7 +272,7 @@ function TrackOrderContent() {
                       {step.state === 'current' && '●'}
                       {step.state === 'upcoming' && ''}
                     </div>
-                    {idx < 4 && <div className="step-connector-line" />}
+                    {idx < 10 && <div className="step-connector-line" />}
                   </div>
                   <div className="step-text-content">
                     <div className="step-title-row">
@@ -231,6 +314,41 @@ function TrackOrderContent() {
               </div>
             </div>
 
+            {/* Courier Details */}
+            {activeOrder.carrier && (
+              <div className="sidebar-info-block" style={{ borderLeft: '3px solid #10b981', paddingTop: '16px' }}>
+                <h3>🚚 Dispatch Logistics</h3>
+                <div className="sidebar-metrics-grid">
+                  <div>
+                    <span>Delivery Partner</span>
+                    <strong>{activeOrder.carrier}</strong>
+                  </div>
+                  <div>
+                    <span>Tracking Number</span>
+                    <strong style={{ color: '#4169e1' }}>{activeOrder.trackingId}</strong>
+                  </div>
+                  <div>
+                    <span>Estimated Delivery</span>
+                    <strong>{activeOrder.estDays || 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span>Fulfillment Cost</span>
+                    <strong>₹{activeOrder.deliveryCost || '0'}</strong>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeOrder.status === 'REJECTED' && activeOrder.rejectionReason && (
+              <div className="sidebar-info-block" style={{ borderLeft: '3px solid #ef4444', backgroundColor: 'rgba(239, 68, 68, 0.05)', paddingTop: '16px' }}>
+                <h3 style={{ color: '#ef4444' }}>❌ Order Rejected</h3>
+                <div style={{ fontSize: '0.85rem' }}>
+                  <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block', marginBottom: '2px' }}>Reason:</span>
+                  <p style={{ margin: '4px 0 0 0', fontWeight: 'bold', color: '#0f172a' }}>{activeOrder.rejectionReason}</p>
+                </div>
+              </div>
+            )}
+
             {/* Product items summary list */}
             <div className="sidebar-info-block">
               <h3>📦 Locked Merchandise</h3>
@@ -242,6 +360,48 @@ function TrackOrderContent() {
                       <h4>{item.name}</h4>
                       <span>Qty: {item.quantity} • Brand: {item.brand}</span>
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Handling Seller Details */}
+            <div className="sidebar-info-block">
+              <h3>🚚 Transit Handling Seller</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {Array.from(new Map(activeOrder.items.map(item => {
+                  const seller = item.seller || { name: item.brand || 'Emahu Seller', email: 'support@emahu.com', phone: '+91 99999 99999' };
+                  return [seller.name + seller.phone, seller];
+                })).values()).map((seller, sIdx) => (
+                  <div key={sIdx} className="sidebar-address-block" style={{ padding: '14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#64748b', display: 'block', marginBottom: '6px' }}>Handling Seller</span>
+                    <strong style={{ fontSize: '0.9rem', color: '#0f172a' }}>{seller.name}</strong>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#475569' }}>
+                      Email: <strong>{seller.email}</strong>
+                    </p>
+                    <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '600', marginBottom: '8px' }}>
+                      <span>✓ Delivery is handled by this seller</span>
+                    </div>
+                    {activeOrder.sellerConfirmed ? (
+                      <div style={{ padding: '6px 10px', background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', fontSize: '0.78rem', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="4">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>✓ Delivery Approved by Seller</span>
+                      </div>
+                    ) : activeOrder.sellerRejected ? (
+                      <div style={{ padding: '6px 10px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', fontSize: '0.78rem', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="4">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                        <span>❌ Delivery Rejected by Seller</span>
+                      </div>
+                    ) : (
+                      <div style={{ padding: '6px 10px', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', fontSize: '0.78rem', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: '700' }}>
+                        <span>Awaiting Seller Delivery Confirmation</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

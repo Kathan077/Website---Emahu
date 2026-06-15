@@ -14,26 +14,8 @@ const CATEGORY_TILES = [
   { label: 'Lifestyle',       value: 'Lifestyle', img: 'https://images.unsplash.com/photo-1608181831718-c9e37e3b9d70?w=400&q=80' },
 ];
 
-const ALL_PRODUCTS = [
-  { id:1,  name:'iPhone 15 Pro Max 256GB',       brand:'Apple',       category:'Tech',     price:134999, original:159999, discount:16, rating:4.9, reviews:2341, img:'https://images.unsplash.com/photo-1696446701796-da61225697cc?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:true  },
-  { id:2,  name:'Samsung Galaxy S24 Ultra',       brand:'Samsung',     category:'Tech',     price:109999, original:129999, discount:15, rating:4.8, reviews:1876, img:'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:3,  name:'Sony WH-1000XM5 Headphones',    brand:'Sony',        category:'Tech',     price:26999,  original:34990,  discount:23, rating:4.8, reviews:3120, img:'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:4,  name:'MacBook Air M3 13-inch',         brand:'Apple',       category:'Tech',     price:114999, original:129900, discount:12, rating:4.9, reviews:987,  img:'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&q=80', verified:true,  isNew:true,  isHot:true,  onSale:false },
-  { id:5,  name:'Nike Air Max 270 React',         brand:'Nike',        category:'Shoes',    price:9995,   original:12995,  discount:23, rating:4.7, reviews:5421, img:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80', verified:false, isNew:false, isHot:true,  onSale:true  },
-  { id:6,  name:'Adidas Ultraboost 22 Running',   brand:'Adidas',      category:'Shoes',    price:12499,  original:15999,  discount:22, rating:4.6, reviews:2103, img:'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:7,  name:'New Balance 574 Classic',        brand:'New Balance', category:'Shoes',    price:7499,   original:8999,   discount:17, rating:4.5, reviews:1234, img:'https://images.unsplash.com/photo-1539185441755-769473a23570?w=600&q=80', verified:false, isNew:false, isHot:false, onSale:true  },
-  { id:8,  name:'Jordan 1 Retro High OG Chicago', brand:'Nike',        category:'Shoes',    price:14999,  original:17999,  discount:17, rating:4.9, reviews:3210, img:'https://images.unsplash.com/photo-1556048219-bb6978360b84?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:false },
-  { id:9,  name:'Eco Bamboo Kitchen Set (8pc)',   brand:'GreenLeaf',   category:'Kitchen',  price:2499,   original:3499,   discount:29, rating:4.7, reviews:876,  img:'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:10, name:'Ceramic Non-Stick Cookware Set', brand:'CeraChef',    category:'Kitchen',  price:4999,   original:6999,   discount:29, rating:4.6, reviews:654,  img:'https://images.unsplash.com/photo-1585515320310-259814833e62?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:11, name:'Stainless Steel Thermal Flask',  brand:'ThermoFlask', category:'Kitchen',  price:1299,   original:1799,   discount:28, rating:4.8, reviews:2890, img:'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600&q=80', verified:false, isNew:false, isHot:true,  onSale:true  },
-  { id:12, name:'Premium Linen Casual Shirt',     brand:'ThreadCo',    category:'Apparel',  price:1899,   original:2499,   discount:24, rating:4.4, reviews:432,  img:'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=600&q=80', verified:false, isNew:true,  isHot:false, onSale:true  },
-  { id:13, name:'Yoga & Fitness Leggings',        brand:'FlexFit',     category:'Apparel',  price:1299,   original:1799,   discount:28, rating:4.6, reviews:987,  img:'https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:14, name:'Samsung 55" QLED 4K Smart TV',  brand:'Samsung',     category:'Tech',     price:69999,  original:89990,  discount:22, rating:4.7, reviews:543,  img:'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:true  },
-  { id:15, name:'Minimalist Leather Bifold Wallet', brand:'SlimCraft', category:'Lifestyle', price:899,   original:1299,   discount:31, rating:4.5, reviews:1203, img:'https://images.unsplash.com/photo-1627123424574-724758594e93?w=600&q=80', verified:false, isNew:false, isHot:false, onSale:true  },
-  { id:16, name:'Artisan Soy Scented Candle Set', brand:'LuxGlow',     category:'Lifestyle', price:1599,  original:1999,   discount:20, rating:4.8, reviews:764,  img:'https://images.unsplash.com/photo-1608181831718-c9e37e3b9d70?w=600&q=80', verified:false, isNew:true,  isHot:false, onSale:false },
-];
+const ALL_PRODUCTS = [];
 
-const BRANDS = ['Apple','Samsung','Sony','Nike','Adidas','New Balance','GreenLeaf','CeraChef','FlexFit','SlimCraft'];
 
 function Stars({ rating }) {
   return (
@@ -60,6 +42,56 @@ export default function ProductsPage() {
   const [cartAdded, setCartAdded]       = useState([]);
   const [searchQuery, setSearchQuery]   = useState('');
   const [page, setPage]                 = useState(1);
+  const [dbProducts, setDbProducts]     = useState([]);
+
+  // Fetch products from database
+  useEffect(() => {
+    const fetchDbProducts = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/products');
+        const data = await res.json();
+        if (data.success) {
+          setDbProducts(data.products);
+        }
+      } catch (err) {
+        console.error('Error fetching backend products:', err);
+      }
+    };
+    fetchDbProducts();
+  }, []);
+
+  // Format database products to match buyer product dashboard structure
+  const formattedDbProducts = useMemo(() => {
+    return dbProducts.map(p => {
+      // Smart category mapping
+      let mappedCategory = p.category;
+      if (p.category === 'Electronics') mappedCategory = 'Tech';
+      else if (p.category === 'Fitness' || p.category === 'Furniture') mappedCategory = 'Lifestyle';
+
+      return {
+        id: p.id || p._id,
+        name: p.name,
+        brand: p.brand || p.seller?.name || 'Emahu Seller',
+        category: mappedCategory,
+        price: p.price,
+        original: p.comparePrice || p.price,
+        discount: p.comparePrice ? Math.round(((p.comparePrice - p.price) / p.comparePrice) * 100) : 0,
+        rating: p.rating || 4.7,
+        reviews: p.reviews || 84,
+        img: p.image || '📦',
+        verified: true,
+        isNew: true,
+        isHot: false,
+        onSale: p.comparePrice ? (p.price < p.comparePrice) : false,
+        seller: p.seller
+      };
+    });
+  }, [dbProducts]);
+
+  // Combine database products (shown at top) with default static ones
+  const allProductsCombined = useMemo(() => {
+    return [...formattedDbProducts, ...ALL_PRODUCTS];
+  }, [formattedDbProducts]);
 
   // Sync state on mount
   useEffect(() => {
@@ -133,7 +165,7 @@ export default function ProductsPage() {
   }, [category, showVerified, showOnSale, showNew, brands, maxPrice, searchQuery]);
 
   const filtered = useMemo(() => {
-    let items = [...ALL_PRODUCTS];
+    let items = [...allProductsCombined];
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       items = items.filter(p =>
@@ -154,11 +186,11 @@ export default function ProductsPage() {
     if (sortBy === 'discount')   items.sort((a,b) => b.discount - a.discount);
     if (sortBy === 'newest')     items.sort((a,b) => b.isNew - a.isNew);
     return items;
-  }, [category, showVerified, showOnSale, showNew, brands, maxPrice, sortBy, searchQuery]);
+  }, [allProductsCombined, category, showVerified, showOnSale, showNew, brands, maxPrice, sortBy, searchQuery]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
   const paged      = filtered.slice((page-1)*PER_PAGE, page*PER_PAGE);
-  const catCount   = v => v === 'All' ? ALL_PRODUCTS.length : ALL_PRODUCTS.filter(p => p.category === v).length;
+  const catCount   = v => v === 'All' ? allProductsCombined.length : allProductsCombined.filter(p => p.category === v).length;
 
   return (
     <div className="bp-page">
@@ -224,7 +256,7 @@ export default function ProductsPage() {
       {/* Meta bar */}
       <div className="bp-metabar">
         <span className="bp-metabar__count">
-          {filtered.length} of {ALL_PRODUCTS.length} results
+          {filtered.length} of {allProductsCombined.length} results
         </span>
         <div className="bp-metabar__right">
           <span className="bp-metabar__sort-label">Sort By</span>
@@ -275,17 +307,17 @@ export default function ProductsPage() {
             <label className="bp-check-item">
               <input type="checkbox" checked={showVerified} onChange={e => { setShowVerified(e.target.checked); setPage(1); }} />
               EMAHU Verified
-              <span className="bp-check-item__count">{ALL_PRODUCTS.filter(p=>p.verified).length}</span>
+              <span className="bp-check-item__count">{allProductsCombined.filter(p=>p.verified).length}</span>
             </label>
             <label className="bp-check-item">
               <input type="checkbox" checked={showOnSale} onChange={e => { setShowOnSale(e.target.checked); setPage(1); }} />
               On Sale
-              <span className="bp-check-item__count">{ALL_PRODUCTS.filter(p=>p.onSale).length}</span>
+              <span className="bp-check-item__count">{allProductsCombined.filter(p=>p.onSale).length}</span>
             </label>
             <label className="bp-check-item">
               <input type="checkbox" checked={showNew} onChange={e => { setShowNew(e.target.checked); setPage(1); }} />
               New Arrivals
-              <span className="bp-check-item__count">{ALL_PRODUCTS.filter(p=>p.isNew).length}</span>
+              <span className="bp-check-item__count">{allProductsCombined.filter(p=>p.isNew).length}</span>
             </label>
           </div>
 
@@ -326,11 +358,11 @@ export default function ProductsPage() {
               <span className="bp-filter-group__title">Brand</span>
               <svg className="bp-filter-group__arrow bp-filter-group__arrow--open" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M6 9l6 6 6-6"/></svg>
             </div>
-            {BRANDS.slice(0,7).map(b => (
+            {Array.from(new Set(allProductsCombined.map(p => p.brand).filter(Boolean))).slice(0, 10).map(b => (
               <label key={b} className="bp-check-item">
                 <input type="checkbox" checked={brands.includes(b)} onChange={() => { toggleBrand(b); setPage(1); }} />
                 {b}
-                <span className="bp-check-item__count">{ALL_PRODUCTS.filter(p=>p.brand===b).length}</span>
+                <span className="bp-check-item__count">{allProductsCombined.filter(p=>p.brand===b).length}</span>
               </label>
             ))}
           </div>
@@ -365,7 +397,13 @@ export default function ProductsPage() {
             ) : paged.map(p => (
               <Link key={p.id} href={`/buyer/products/${p.id}`} className="bp-card" style={{textDecoration:'none',color:'inherit'}}>
                 <div className="bp-card__img-wrap">
-                  <img src={p.img} alt={p.name} className="bp-card__img" loading="lazy" />
+                  {(!p.img || !p.img.startsWith('http')) ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', fontSize: '4.5rem', background: '#f4f4f5' }}>
+                      {p.img || '📦'}
+                    </div>
+                  ) : (
+                    <img src={p.img} alt={p.name} className="bp-card__img" loading="lazy" />
+                  )}
 
                   {/* Category chip */}
                   <span className="bp-card__cat-chip">{p.category}</span>

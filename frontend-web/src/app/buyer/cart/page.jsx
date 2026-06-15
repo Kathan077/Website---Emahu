@@ -5,56 +5,73 @@ import Link from 'next/link';
 import BuyerHeader from '@/components/buyer_home/buyer_header';
 import './cart.css';
 
-/* ─── SHARED PRODUCT SCHEMA ─── */
-const ALL_PRODUCTS = [
-  { id:1,  name:'iPhone 15 Pro Max 256GB',       brand:'Apple',       category:'Tech',     price:134999, original:159999, discount:16, rating:4.9, reviews:2341, img:'https://images.unsplash.com/photo-1696446701796-da61225697cc?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:true  },
-  { id:2,  name:'Samsung Galaxy S24 Ultra',       brand:'Samsung',     category:'Tech',     price:109999, original:129999, discount:15, rating:4.8, reviews:1876, img:'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:3,  name:'Sony WH-1000XM5 Headphones',    brand:'Sony',        category:'Tech',     price:26999,  original:34990,  discount:23, rating:4.8, reviews:3120, img:'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:4,  name:'MacBook Air M3 13-inch',         brand:'Apple',       category:'Tech',     price:114999, original:129900, discount:12, rating:4.9, reviews:987,  img:'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&q=80', verified:true,  isNew:true,  isHot:true,  onSale:false },
-  { id:5,  name:'Nike Air Max 270 React',         brand:'Nike',        category:'Shoes',    price:9995,   original:12995,  discount:23, rating:4.7, reviews:5421, img:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80', verified:false, isNew:false, isHot:true,  onSale:true  },
-  { id:6,  name:'Adidas Ultraboost 22 Running',   brand:'Adidas',      category:'Shoes',    price:12499,  original:15999,  discount:22, rating:4.6, reviews:2103, img:'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:7,  name:'New Balance 574 Classic',        brand:'New Balance', category:'Shoes',    price:7499,   original:8999,   discount:17, rating:4.5, reviews:1234, img:'https://images.unsplash.com/photo-1539185441755-769473a23570?w=600&q=80', verified:false, isNew:false, isHot:false, onSale:true  },
-  { id:8,  name:'Jordan 1 Retro High OG Chicago', brand:'Nike',        category:'Shoes',    price:14999,  original:17999,  discount:17, rating:4.9, reviews:3210, img:'https://images.unsplash.com/photo-1556048219-bb6978360b84?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:false },
-  { id:9,  name:'Eco Bamboo Kitchen Set (8pc)',   brand:'GreenLeaf',   category:'Kitchen',  price:2499,   original:3499,   discount:29, rating:4.7, reviews:876,  img:'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:10, name:'Ceramic Non-Stick Cookware Set', brand:'CeraChef',    category:'Kitchen',  price:4999,   original:6999,   discount:29, rating:4.6, reviews:654,  img:'https://images.unsplash.com/photo-1585515320310-259814833e62?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:11, name:'Stainless Steel Thermal Flask',  brand:'ThermoFlask', category:'Kitchen',  price:1299,   original:1799,   discount:28, rating:4.8, reviews:2890, img:'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600&q=80', verified:false, isNew:false, isHot:true,  onSale:true  },
-  { id:12, name:'Premium Linen Casual Shirt',     brand:'ThreadCo',    category:'Apparel',  price:1899,   original:2499,   discount:24, rating:4.4, reviews:432,  img:'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=600&q=80', verified:false, isNew:true,  isHot:false, onSale:true  },
-  { id:13, name:'Yoga & Fitness Leggings',        brand:'FlexFit',     category:'Apparel',  price:1299,   original:1799,   discount:28, rating:4.6, reviews:987,  img:'https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:14, name:'Samsung 55" QLED 4K Smart TV',  brand:'Samsung',     category:'Tech',     price:69999,  original:89990,  discount:22, rating:4.7, reviews:543,  img:'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:true  },
-  { id:15, name:'Minimalist Leather Bifold Wallet', brand:'SlimCraft', category:'Lifestyle', price:899,   original:1299,   discount:31, rating:4.5, reviews:1203, img:'https://images.unsplash.com/photo-1627123424574-724758594e93?w=600&q=80', verified:false, isNew:false, isHot:false, onSale:true  },
-  { id:16, name:'Artisan Soy Scented Candle Set', brand:'LuxGlow',     category:'Lifestyle', price:1599,  original:1999,   discount:20, rating:4.8, reviews:764,  img:'https://images.unsplash.com/photo-1608181831718-c9e37e3b9d70?w=600&q=80', verified:false, isNew:true,  isHot:false, onSale:false },
-];
+const ALL_PRODUCTS = [];
 
 export default function CartPage() {
   const [cartItems, setCartItems] = useState([]);
   const [checkoutStep, setCheckoutStep] = useState('idle'); // idle | securing | success
   const [removingId, setRemovingId] = useState(null);
   const [isClearingAll, setIsClearingAll] = useState(false);
+  const [transactionCode, setTransactionCode] = useState('');
   
   // Load Cart items on mount
   useEffect(() => {
-    try {
-      const storedCart = localStorage.getItem('emahu_cart');
-      if (storedCart) {
-        const parsed = JSON.parse(storedCart);
-        // parsed: [{ id, quantity, color, size }]
-        const matched = parsed.map(cItem => {
-          const prod = ALL_PRODUCTS.find(p => p.id === (typeof cItem === 'object' ? cItem.id : cItem));
-          if (prod) {
+    const loadCartAndProducts = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/products');
+        const data = await res.json();
+        let formattedList = [];
+        if (data.success) {
+          formattedList = data.products.map(p => {
+            let mappedCategory = p.category;
+            if (p.category === 'Electronics') mappedCategory = 'Tech';
+            else if (p.category === 'Fitness' || p.category === 'Furniture') mappedCategory = 'Lifestyle';
+
             return {
-              ...prod,
-              quantity: cItem.quantity || 1,
-              selectedColor: cItem.color || 'Premium Black',
-              selectedSize: cItem.size || 'Regular'
+              id: p.id || p._id,
+              name: p.name,
+              brand: p.brand || p.seller?.name || 'Emahu Seller',
+              category: mappedCategory,
+              price: p.price,
+              original: p.comparePrice || p.price,
+              discount: p.comparePrice ? Math.round(((p.comparePrice - p.price) / p.comparePrice) * 100) : 0,
+              rating: p.rating || 4.7,
+              reviews: p.reviews || 84,
+              img: p.image || '📦',
+              verified: true,
+              isNew: true,
+              isHot: false,
+              onSale: p.comparePrice ? (p.price < p.comparePrice) : false,
+              seller: p.seller
             };
-          }
-          return null;
-        }).filter(Boolean);
-        setCartItems(matched);
+          });
+        }
+
+        const storedCart = localStorage.getItem('emahu_cart');
+        if (storedCart) {
+          const parsed = JSON.parse(storedCart);
+          // parsed: [{ id, quantity, color, size }]
+          const matched = parsed.map(cItem => {
+            const cItemId = typeof cItem === 'object' ? cItem.id : cItem;
+            const prod = formattedList.find(p => p.id.toString() === cItemId.toString());
+            if (prod) {
+              return {
+                ...prod,
+                quantity: cItem.quantity || 1,
+                selectedColor: cItem.color || 'Premium Black',
+                selectedSize: cItem.size || 'Regular'
+              };
+            }
+            return null;
+          }).filter(Boolean);
+          setCartItems(matched);
+        }
+      } catch (err) {
+        console.error(err);
       }
-    } catch(e) {
-      console.error(e);
-    }
+    };
+
+    loadCartAndProducts();
   }, []);
 
   // Save changes to localStorage helper
@@ -123,6 +140,8 @@ export default function CartPage() {
     
     setTimeout(() => {
       // Step 2: Completed Escrow Locked Success
+      const generatedCode = `EMH_${Math.floor(100000 + Math.random() * 900000)}`;
+      setTransactionCode(generatedCode);
       setCheckoutStep('success');
       
       // Save order in orders history in localStorage
@@ -130,7 +149,7 @@ export default function CartPage() {
         const storedOrdersStr = localStorage.getItem('emahu_orders') || '[]';
         const storedOrders = JSON.parse(storedOrdersStr);
         storedOrders.push({
-          orderId: `EMH_${Math.floor(100000 + Math.random() * 900000)}`,
+          orderId: generatedCode,
           date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
           items: cartItems.map(p => ({ name: p.name, price: p.price, quantity: p.quantity, brand: p.brand, img: p.img })),
           total: grandTotal,
@@ -195,7 +214,7 @@ export default function CartPage() {
               </svg>
             </div>
             <h2>Your Shopping Cart is Empty</h2>
-            <p>You haven't locked in any certified products yet. Explore the products store to secure your first order.</p>
+            <p>You haven&apos;t locked in any certified products yet. Explore the products store to secure your first order.</p>
             <Link href="/buyer/products" className="cart-explore-btn">
               Explore Products Catalog
             </Link>
@@ -381,7 +400,7 @@ export default function CartPage() {
                 <div className="cart-order-receipt">
                   <div className="receipt-row">
                     <span>Transaction Code:</span>
-                    <strong>EMH_{Math.floor(100000 + Math.random() * 900000)}</strong>
+                    <strong>{transactionCode}</strong>
                   </div>
                   <div className="receipt-row">
                     <span>Vault Guaranteed Total:</span>

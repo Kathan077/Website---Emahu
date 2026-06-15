@@ -5,25 +5,7 @@ import Link from 'next/link';
 import BuyerHeader from '@/components/buyer_home/buyer_header';
 import './wishlist.css';
 
-/* ─── SHARED SCHEMAS (Matches Products listing exactly) ─── */
-const ALL_PRODUCTS = [
-  { id:1,  name:'iPhone 15 Pro Max 256GB',       brand:'Apple',       category:'Tech',     price:134999, original:159999, discount:16, rating:4.9, reviews:2341, img:'https://images.unsplash.com/photo-1696446701796-da61225697cc?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:true  },
-  { id:2,  name:'Samsung Galaxy S24 Ultra',       brand:'Samsung',     category:'Tech',     price:109999, original:129999, discount:15, rating:4.8, reviews:1876, img:'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:3,  name:'Sony WH-1000XM5 Headphones',    brand:'Sony',        category:'Tech',     price:26999,  original:34990,  discount:23, rating:4.8, reviews:3120, img:'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:4,  name:'MacBook Air M3 13-inch',         brand:'Apple',       category:'Tech',     price:114999, original:129900, discount:12, rating:4.9, reviews:987,  img:'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&q=80', verified:true,  isNew:true,  isHot:true,  onSale:false },
-  { id:5,  name:'Nike Air Max 270 React',         brand:'Nike',        category:'Shoes',    price:9995,   original:12995,  discount:23, rating:4.7, reviews:5421, img:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80', verified:false, isNew:false, isHot:true,  onSale:true  },
-  { id:6,  name:'Adidas Ultraboost 22 Running',   brand:'Adidas',      category:'Shoes',    price:12499,  original:15999,  discount:22, rating:4.6, reviews:2103, img:'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:7,  name:'New Balance 574 Classic',        brand:'New Balance', category:'Shoes',    price:7499,   original:8999,   discount:17, rating:4.5, reviews:1234, img:'https://images.unsplash.com/photo-1539185441755-769473a23570?w=600&q=80', verified:false, isNew:false, isHot:false, onSale:true  },
-  { id:8,  name:'Jordan 1 Retro High OG Chicago', brand:'Nike',        category:'Shoes',    price:14999,  original:17999,  discount:17, rating:4.9, reviews:3210, img:'https://images.unsplash.com/photo-1556048219-bb6978360b84?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:false },
-  { id:9,  name:'Eco Bamboo Kitchen Set (8pc)',   brand:'GreenLeaf',   category:'Kitchen',  price:2499,   original:3499,   discount:29, rating:4.7, reviews:876,  img:'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:10, name:'Ceramic Non-Stick Cookware Set', brand:'CeraChef',    category:'Kitchen',  price:4999,   original:6999,   discount:29, rating:4.6, reviews:654,  img:'https://images.unsplash.com/photo-1585515320310-259814833e62?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:11, name:'Stainless Steel Thermal Flask',  brand:'ThermoFlask', category:'Kitchen',  price:1299,   original:1799,   discount:28, rating:4.8, reviews:2890, img:'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600&q=80', verified:false, isNew:false, isHot:true,  onSale:true  },
-  { id:12, name:'Premium Linen Casual Shirt',     brand:'ThreadCo',    category:'Apparel',  price:1899,   original:2499,   discount:24, rating:4.4, reviews:432,  img:'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=600&q=80', verified:false, isNew:true,  isHot:false, onSale:true  },
-  { id:13, name:'Yoga & Fitness Leggings',        brand:'FlexFit',     category:'Apparel',  price:1299,   original:1799,   discount:28, rating:4.6, reviews:987,  img:'https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:14, name:'Samsung 55" QLED 4K Smart TV',  brand:'Samsung',     category:'Tech',     price:69999,  original:89990,  discount:22, rating:4.7, reviews:543,  img:'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:true  },
-  { id:15, name:'Minimalist Leather Bifold Wallet', brand:'SlimCraft', category:'Lifestyle', price:899,   original:1299,   discount:31, rating:4.5, reviews:1203, img:'https://images.unsplash.com/photo-1627123424574-724758594e93?w=600&q=80', verified:false, isNew:false, isHot:false, onSale:true  },
-  { id:16, name:'Artisan Soy Scented Candle Set', brand:'LuxGlow',     category:'Lifestyle', price:1599,  original:1999,   discount:20, rating:4.8, reviews:764,  img:'https://images.unsplash.com/photo-1608181831718-c9e37e3b9d70?w=600&q=80', verified:false, isNew:true,  isHot:false, onSale:false },
-];
+const ALL_PRODUCTS = [];
 
 function Stars({ rating }) {
   return (
@@ -41,25 +23,57 @@ export default function WishlistPage() {
   const [wishlistItems, setWishlistItems] = useState([]);
   const [cartAdded, setCartAdded] = useState([]);
 
-  // Load wishlist from localStorage on mount
+  // Load wishlist from localStorage and backend
   useEffect(() => {
-    try {
-      const storedWish = localStorage.getItem('emahu_wishlist');
-      if (storedWish) {
-        const ids = JSON.parse(storedWish);
-        // Map ids to matching product objects
-        const matched = ALL_PRODUCTS.filter(p => ids.includes(p.id));
-        setWishlistItems(matched);
+    const loadWishlistData = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/products');
+        const data = await res.json();
+        let formattedList = [];
+        if (data.success) {
+          formattedList = data.products.map(p => {
+            let mappedCategory = p.category;
+            if (p.category === 'Electronics') mappedCategory = 'Tech';
+            else if (p.category === 'Fitness' || p.category === 'Furniture') mappedCategory = 'Lifestyle';
+
+            return {
+              id: p.id || p._id,
+              name: p.name,
+              brand: p.brand || p.seller?.name || 'Emahu Seller',
+              category: mappedCategory,
+              price: p.price,
+              original: p.comparePrice || p.price,
+              discount: p.comparePrice ? Math.round(((p.comparePrice - p.price) / p.comparePrice) * 100) : 0,
+              rating: p.rating || 4.7,
+              reviews: p.reviews || 84,
+              img: p.image || '📦',
+              verified: true,
+              isNew: true,
+              isHot: false,
+              onSale: p.comparePrice ? (p.price < p.comparePrice) : false
+            };
+          });
+        }
+
+        const storedWish = localStorage.getItem('emahu_wishlist');
+        if (storedWish) {
+          const ids = JSON.parse(storedWish).map(id => id.toString());
+          // Map ids to matching product objects
+          const matched = formattedList.filter(p => ids.includes(p.id.toString()));
+          setWishlistItems(matched);
+        }
+        
+        const storedCart = localStorage.getItem('emahu_cart');
+        if (storedCart) {
+          const parsed = JSON.parse(storedCart);
+          setCartAdded(parsed.map(x => typeof x === 'object' ? x.id : x));
+        }
+      } catch(e) {
+        console.error(e);
       }
-      
-      const storedCart = localStorage.getItem('emahu_cart');
-      if (storedCart) {
-        const parsed = JSON.parse(storedCart);
-        setCartAdded(parsed.map(x => typeof x === 'object' ? x.id : x));
-      }
-    } catch(e) {
-      console.error(e);
-    }
+    };
+
+    loadWishlistData();
   }, []);
 
   // Remove single item from wishlist

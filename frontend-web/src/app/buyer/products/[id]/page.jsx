@@ -1,37 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import BuyerHeader from '@/components/buyer_home/buyer_header';
 import './product-detail.css';
 
-const ALL_PRODUCTS = [
-  { id:1,  name:'iPhone 15 Pro Max 256GB',        brand:'Apple',       category:'Tech',    price:134999, original:159999, discount:16, rating:4.9, reviews:2341, verified:true,  isHot:true,  onSale:true,
-    imgs:['https://images.unsplash.com/photo-1696446701796-da61225697cc?w=800&q=80','https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=800&q=80','https://images.unsplash.com/photo-1574944985070-8f3ebc6b79d2?w=800&q=80','https://images.unsplash.com/photo-1601784551446-20c9e07cdbdb?w=800&q=80'],
-    colors:['#1a1a1a','#e8e4dd','#4a90d9','#c4a882'], sizes:[], desc:'The most powerful iPhone ever with titanium design, A17 Pro chip, and the most advanced camera system.',
-    specs:[['Display','6.7" Super Retina XDR OLED'],['Chip','Apple A17 Pro'],['Camera','48MP Main + 12MP Ultra Wide'],['Battery','4422 mAh'],['Storage','256GB'],['OS','iOS 17'],['Weight','221g'],['Color','Natural Titanium']]},
-  { id:2,  name:'Samsung Galaxy S24 Ultra',        brand:'Samsung',     category:'Tech',    price:109999, original:129999, discount:15, rating:4.8, reviews:1876, verified:true,  isHot:false, onSale:true,
-    imgs:['https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=800&q=80','https://images.unsplash.com/photo-1567581935884-3349723552ca?w=800&q=80','https://images.unsplash.com/photo-1512499617640-c74ae3a79d37?w=800&q=80','https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=800&q=80'],
-    colors:['#2d2d2d','#c8b49a','#9e8fa0'], sizes:[], desc:'The ultimate Android flagship with S Pen, 200MP camera, and a 5000mAh battery that lasts all day.',
-    specs:[['Display','6.8" Dynamic AMOLED 2X'],['Chip','Snapdragon 8 Gen 3'],['Camera','200MP + 12MP + 10MP'],['Battery','5000 mAh'],['Storage','256GB'],['OS','Android 14'],['Weight','232g'],['S Pen','Yes']]},
-  { id:5,  name:'Nike Air Max 270 React',          brand:'Nike',        category:'Shoes',   price:9995,   original:12995,  discount:23, rating:4.7, reviews:5421, verified:false, isHot:true,  onSale:true,
-    imgs:['https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80','https://images.unsplash.com/photo-1579338908476-3a3a1d71a706?w=800&q=80','https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=800&q=80','https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?w=800&q=80'],
-    colors:['#ff4d4d','#1a1a1a','#ffffff','#4169e1'], sizes:['UK 6','UK 7','UK 8','UK 9','UK 10','UK 11'], desc:'Air Max 270 React combines two of Nike\'s most innovative technologies for unprecedented comfort.',
-    specs:[['Upper','Engineered Mesh'],['Sole','React + Air Max 270 Unit'],['Fit','True to size'],['Drop','8mm'],['Weight','310g'],['Closure','Lace-up'],['Category','Lifestyle Running'],['Warranty','6 months']]},
-  { id:9,  name:'Eco Bamboo Kitchen Set (8pc)',    brand:'GreenLeaf',   category:'Kitchen', price:2499,   original:3499,   discount:29, rating:4.7, reviews:876,  verified:true,  isHot:false, onSale:true,
-    imgs:['https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=800&q=80','https://images.unsplash.com/photo-1585515320310-259814833e62?w=800&q=80','https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=800&q=80','https://images.unsplash.com/photo-1584273143981-41c073dfe8f8?w=800&q=80'],
-    colors:['#c8a882','#8d6e4a'], sizes:[], desc:'Sustainable 8-piece bamboo kitchen set crafted from premium Moso bamboo. Naturally antibacterial.',
-    specs:[['Material','Premium Moso Bamboo'],['Pieces','8 Items'],['Antibacterial','Yes (Natural)'],['Food Safe','Yes, BPA-free'],['Care','Hand wash only'],['Origin','India'],['Warranty','1 year'],['Eco Certified','Yes']]},
-  { id:12, name:'Premium Linen Casual Shirt',      brand:'ThreadCo',    category:'Apparel', price:1899,   original:2499,   discount:24, rating:4.4, reviews:432,  verified:false, isHot:false, onSale:true,
-    imgs:['https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=800&q=80','https://images.unsplash.com/photo-1603252109303-2751441dd157?w=800&q=80','https://images.unsplash.com/photo-1598300042247-d088f8ab3a91?w=800&q=80','https://images.unsplash.com/photo-1607345366928-199ea26cfe3e?w=800&q=80'],
-    colors:['#e8dcc8','#4a6741','#2d4a6b','#1a1a1a'], sizes:['XS','S','M','L','XL','XXL'], desc:'Premium 100% European linen shirt with a relaxed fit. Breathable, natural, and effortlessly stylish.',
-    specs:[['Material','100% European Linen'],['Fit','Relaxed'],['Collar','Classic'],['Care','Machine wash cold'],['Origin','Portugal'],['Certified','OEKO-TEX 100'],['Weight','180gsm'],['Warranty','Return within 30 days']]},
-  { id:16, name:'Jordan 1 Retro High OG Chicago',  brand:'Nike',        category:'Shoes',   price:14999,  original:17999,  discount:17, rating:4.9, reviews:3210, verified:true,  isHot:true,  onSale:false,
-    imgs:['https://images.unsplash.com/photo-1556048219-bb6978360b84?w=800&q=80','https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&q=80','https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?w=800&q=80','https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=800&q=80'],
-    colors:['#cc1a1a','#1a1a1a'], sizes:['UK 6','UK 7','UK 8','UK 9','UK 10'], desc:'The iconic Air Jordan 1 Retro High OG in the legendary Chicago colorway. Original heritage silhouette.',
-    specs:[['Upper','Full-grain Leather'],['Sole','Rubber'],['Fit','Half size up recommended'],['Category','Basketball / Lifestyle'],['Release','Retro OG'],['Closure','Lace-up'],['Weight','425g'],['Air Unit','Nike Air']]}
-];
+const ALL_PRODUCTS = [];
 
 const REVIEWS = [
   { id:1, name:'Rahul M.',   rating:5, date:'May 2025', text:'Absolutely premium quality! Packaging was immaculate and delivery was super fast. EMAHU verification seal was intact. 100% legit product.', tags:['Fast Delivery','Authentic'], color:'#4169e1', verified:true },
@@ -66,9 +41,11 @@ const RATING_DIST = [
 
 export default function ProductDetailPage() {
   const params = useParams();
-  const id = parseInt(params.id);
-  const product = ALL_PRODUCTS.find(p => p.id === id) || ALL_PRODUCTS[0];
+  const id = params.id;
+  const router = useRouter();
 
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [activeImg,   setActiveImg]   = useState(0);
   const [activeColor, setActiveColor] = useState(0);
   const [activeSize,  setActiveSize]  = useState('');
@@ -77,10 +54,140 @@ export default function ProductDetailPage() {
   const [added,       setAdded]       = useState(false);
   const [activeTab,   setActiveTab]   = useState('desc');
 
+  // Sync wishlist on mount
+  useEffect(() => {
+    try {
+      const storedWish = localStorage.getItem('emahu_wishlist');
+      if (storedWish) {
+        const ids = JSON.parse(storedWish);
+        setWishlist(ids.includes(id));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, [id]);
+
+  // Load product details from database
+  useEffect(() => {
+    const fetchDbProduct = async () => {
+      try {
+        const res = await fetch(`http://localhost:5000/api/products/${id}`);
+        const data = await res.json();
+        if (data.success && data.product) {
+          const p = data.product;
+
+          // Smart category mapping
+          let mappedCategory = p.category;
+          if (p.category === 'Electronics') mappedCategory = 'Tech';
+          else if (p.category === 'Fitness' || p.category === 'Furniture') mappedCategory = 'Lifestyle';
+
+          setProduct({
+            id: p.id || p._id,
+            name: p.name,
+            brand: p.brand || p.seller?.name || 'Emahu Seller',
+            category: mappedCategory,
+            price: p.price,
+            original: p.comparePrice || p.price,
+            discount: p.comparePrice ? Math.round(((p.comparePrice - p.price) / p.comparePrice) * 100) : 0,
+            rating: p.rating || 4.7,
+            reviews: p.reviews || 84,
+            imgs: p.image && p.image.startsWith('http') ? [p.image] : [],
+            imageEmoji: (!p.image || !p.image.startsWith('http')) ? p.image : null,
+            colors: [],
+            sizes: [],
+            desc: p.description || 'Premium quality product listing verified by EMAHU.',
+            specs: [
+              ['Category', p.category],
+              ['Available Inventory', `${p.stock} units`],
+              ['Status', p.status === 'in-stock' ? 'In Stock' : p.status === 'low-stock' ? 'Low Stock' : 'Out of Stock'],
+              ['SKU Identifier', p.sku],
+              ['Seller Name', p.seller?.name || 'Authorized Merchant']
+            ],
+            verified: true,
+            isHot: false,
+            onSale: p.comparePrice ? (p.price < p.comparePrice) : false,
+            seller: p.seller
+          });
+        }
+      } catch (err) {
+        console.error('Error fetching database product:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDbProduct();
+  }, [id]);
+
   const handleAddCart = () => {
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
+    try {
+      const storedCartStr = localStorage.getItem('emahu_cart') || '[]';
+      const storedCart = JSON.parse(storedCartStr);
+      if (!storedCart.some(x => (typeof x === 'object' ? x.id : x) === product.id)) {
+        storedCart.push({
+          id: product.id,
+          quantity: qty,
+          color: product.colors[activeColor] || 'Default',
+          size: activeSize || 'Default'
+        });
+        localStorage.setItem('emahu_cart', JSON.stringify(storedCart));
+        window.dispatchEvent(new Event('storage'));
+      }
+      setAdded(true);
+      setTimeout(() => setAdded(false), 2000);
+    } catch (err) {
+      console.error(err);
+    }
   };
+
+  const handleBuyNow = () => {
+    try {
+      const storedCartStr = localStorage.getItem('emahu_cart') || '[]';
+      const storedCart = JSON.parse(storedCartStr);
+      if (!storedCart.some(x => (typeof x === 'object' ? x.id : x) === product.id)) {
+        storedCart.push({
+          id: product.id,
+          quantity: qty,
+          color: product.colors[activeColor] || 'Default',
+          size: activeSize || 'Default'
+        });
+        localStorage.setItem('emahu_cart', JSON.stringify(storedCart));
+        window.dispatchEvent(new Event('storage'));
+      }
+      router.push('/buyer/checkout');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleToggleWishlist = () => {
+    try {
+      const storedWish = localStorage.getItem('emahu_wishlist') || '[]';
+      let ids = JSON.parse(storedWish);
+      if (ids.includes(product.id)) {
+        ids = ids.filter(x => x !== product.id);
+        setWishlist(false);
+      } else {
+        ids.push(product.id);
+        setWishlist(true);
+      }
+      localStorage.setItem('emahu_wishlist', JSON.stringify(ids));
+      window.dispatchEvent(new Event('storage'));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  if (loading || !product) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', backgroundColor: '#fafafa', color: '#111' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ width: '40px', height: '40px', border: '3px solid #e5e7eb', borderTopColor: '#0f172a', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 16px' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>Loading product details...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="pd-page">
@@ -101,16 +208,28 @@ export default function ProductDetailPage() {
         <div className="pd-gallery">
           {/* Thumbnails */}
           <div className="pd-thumbs">
-            {product.imgs.map((img, i) => (
-              <button key={i} className={`pd-thumb ${activeImg === i ? 'pd-thumb--active' : ''}`} onClick={() => setActiveImg(i)}>
-                <img src={img} alt={`View ${i+1}`} />
-              </button>
-            ))}
+            {product.imageEmoji ? (
+              <div className="pd-thumb pd-thumb--active" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', width: '60px', height: '60px', background: '#f4f4f5', borderRadius: '8px' }}>
+                {product.imageEmoji}
+              </div>
+            ) : (
+              product.imgs.map((img, i) => (
+                <button key={i} className={`pd-thumb ${activeImg === i ? 'pd-thumb--active' : ''}`} onClick={() => setActiveImg(i)}>
+                  <img src={img} alt={`View ${i+1}`} />
+                </button>
+              ))
+            )}
           </div>
 
           {/* Big image */}
           <div className="pd-main-img-wrap">
-            <img src={product.imgs[activeImg]} alt={product.name} className="pd-main-img" />
+            {product.imageEmoji ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', minHeight: '350px', fontSize: '8rem', background: '#f4f4f5', borderRadius: '16px' }}>
+                {product.imageEmoji}
+              </div>
+            ) : (
+              <img src={product.imgs[activeImg]} alt={product.name} className="pd-main-img" />
+            )}
             
             {/* Badges */}
             <div className="pd-img-badges">
@@ -200,11 +319,11 @@ export default function ProductDetailPage() {
                 <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg> Add to Cart</>
               )}
             </button>
-            <button className="pd-btn-buy">
+            <button className="pd-btn-buy" onClick={handleBuyNow}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
               Buy Now
             </button>
-            <button className={`pd-btn-wishlist ${wishlist?'pd-btn-wishlist--active':''}`} onClick={() => setWishlist(w=>!w)} aria-label="Wishlist">
+            <button className={`pd-btn-wishlist ${wishlist?'pd-btn-wishlist--active':''}`} onClick={handleToggleWishlist} aria-label="Wishlist">
               <svg width="18" height="18" viewBox="0 0 24 24" fill={wishlist?'#ef4444':'none'} stroke={wishlist?'#ef4444':'#374151'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
               </svg>

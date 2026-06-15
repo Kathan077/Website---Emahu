@@ -4,9 +4,11 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
+const productRoutes = require('./routes/productRoutes');
 
 // Initialize app
 const app = express();
+
 
 // Connect to MongoDB Database
 connectDB();
@@ -45,6 +47,8 @@ app.get('/', (req, res) => {
 
 // Register API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+
 
 // 404 Route handler
 app.use((req, res, next) => {

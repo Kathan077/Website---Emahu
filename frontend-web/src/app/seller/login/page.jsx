@@ -81,7 +81,7 @@ export default function SellerLogin() {
             <div className="sl-brand-card__hero-text">
               <h1 className="sl-brand-card__title">Empower Your Business Today.</h1>
               <p className="sl-brand-card__desc">
-                Join India's most seller-friendly marketplace with 0% commission, seamless doorstep shipping, and ultra-fast 48-hour payouts.
+                Join India&apos;s most seller-friendly marketplace with 0% commission, seamless doorstep shipping, and ultra-fast 48-hour payouts.
               </p>
             </div>
 

@@ -17,8 +17,40 @@ export default function BuyerHeader() {
   
   const [cartCount, setCartCount] = useState(0);
   const [wishCount, setWishCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   // Sync count states on mount & storage changes
+  useEffect(() => {
+    const loadNotifs = () => {
+      try {
+        const stored = localStorage.getItem('emahu_notifications');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setNotifications(parsed.filter(n => n.role === 'buyer'));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    loadNotifs();
+    window.addEventListener('storage', loadNotifs);
+    return () => window.removeEventListener('storage', loadNotifs);
+  }, []);
+
+  const handleMarkNotifsRead = () => {
+    try {
+      const stored = localStorage.getItem('emahu_notifications');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const updated = parsed.map(n => n.role === 'buyer' ? { ...n, read: true } : n);
+        localStorage.setItem('emahu_notifications', JSON.stringify(updated));
+        window.dispatchEvent(new Event('storage'));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
   useEffect(() => {
     const updateCounts = () => {
       try {
@@ -158,6 +190,90 @@ export default function BuyerHeader() {
               </span>
             )}
           </Link>
+
+          {/* Notification Icon */}
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <button 
+              className="bh-action-icon" 
+              onClick={() => { setIsNotifOpen(!isNotifOpen); handleMarkNotifsRead(); }}
+              aria-label="Notifications" 
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+              {notifications.some(n => !n.read) && (
+                <span className="bh-action-icon__badge" style={{ backgroundColor: '#ef4444' }}>
+                  {notifications.filter(n => !n.read).length}
+                </span>
+              )}
+            </button>
+            {isNotifOpen && (
+              <div className="bh-profile__dropdown" style={{
+                position: 'absolute',
+                top: '40px',
+                right: '0',
+                width: '320px',
+                maxHeight: '400px',
+                backgroundColor: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '8px',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                zIndex: 1000,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  padding: '12px 16px',
+                  borderBottom: '1px solid #e2e8f0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <strong style={{ color: '#0f172a', fontSize: '0.9rem' }}>Notifications</strong>
+                  <button 
+                    onClick={() => {
+                      try {
+                        const stored = localStorage.getItem('emahu_notifications') || '[]';
+                        const parsed = JSON.parse(stored);
+                        const updated = parsed.filter(n => n.role !== 'buyer');
+                        localStorage.setItem('emahu_notifications', JSON.stringify(updated));
+                        window.dispatchEvent(new Event('storage'));
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                    style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '0.75rem', cursor: 'pointer' }}
+                  >
+                    Clear All
+                  </button>
+                </div>
+                <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0' }}>
+                  {notifications.length === 0 ? (
+                    <div style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '0.8rem' }}>
+                      No notifications yet
+                    </div>
+                  ) : (
+                    notifications.map(n => (
+                      <div key={n.id} style={{
+                        padding: '10px 16px',
+                        borderBottom: '1px solid #f1f5f9',
+                        backgroundColor: n.read ? 'transparent' : '#f8fafc',
+                        textAlign: 'left'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <span style={{ fontWeight: 'bold', fontSize: '0.8rem', color: '#0f172a' }}>{n.title}</span>
+                          <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{n.date}</span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: '0.75rem', color: '#475569', lineHeight: '1.3' }}>{n.message}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Login Action or Profile dropdown */}
           <div className="bh-profile" ref={profileDropdownRef}>

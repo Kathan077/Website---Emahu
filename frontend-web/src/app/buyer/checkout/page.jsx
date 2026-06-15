@@ -5,25 +5,7 @@ import Link from 'next/link';
 import BuyerHeader from '@/components/buyer_home/buyer_header';
 import './checkout.css';
 
-/* ─── SHARED PRODUCT SCHEMA (Matches Products listing exactly) ─── */
-const ALL_PRODUCTS = [
-  { id:1,  name:'iPhone 15 Pro Max 256GB',       brand:'Apple',       category:'Tech',     price:134999, original:159999, discount:16, rating:4.9, reviews:2341, img:'https://images.unsplash.com/photo-1696446701796-da61225697cc?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:true  },
-  { id:2,  name:'Samsung Galaxy S24 Ultra',       brand:'Samsung',     category:'Tech',     price:109999, original:129999, discount:15, rating:4.8, reviews:1876, img:'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:3,  name:'Sony WH-1000XM5 Headphones',    brand:'Sony',        category:'Tech',     price:26999,  original:34990,  discount:23, rating:4.8, reviews:3120, img:'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:4,  name:'MacBook Air M3 13-inch',         brand:'Apple',       category:'Tech',     price:114999, original:129900, discount:12, rating:4.9, reviews:987,  img:'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=600&q=80', verified:true,  isNew:true,  isHot:true,  onSale:false },
-  { id:5,  name:'Nike Air Max 270 React',         brand:'Nike',        category:'Shoes',    price:9995,   original:12995,  discount:23, rating:4.7, reviews:5421, img:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&q=80', verified:false, isNew:false, isHot:true,  onSale:true  },
-  { id:6,  name:'Adidas Ultraboost 22 Running',   brand:'Adidas',      category:'Shoes',    price:12499,  original:15999,  discount:22, rating:4.6, reviews:2103, img:'https://images.unsplash.com/photo-1608231387042-66d1773070a5?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:7,  name:'New Balance 574 Classic',        brand:'New Balance', category:'Shoes',    price:7499,   original:8999,   discount:17, rating:4.5, reviews:1234, img:'https://images.unsplash.com/photo-1539185441755-769473a23570?w=600&q=80', verified:false, isNew:false, isHot:false, onSale:true  },
-  { id:8,  name:'Jordan 1 Retro High OG Chicago', brand:'Nike',        category:'Shoes',    price:14999,  original:17999,  discount:17, rating:4.9, reviews:3210, img:'https://images.unsplash.com/photo-1556048219-bb6978360b84?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:false },
-  { id:9,  name:'Eco Bamboo Kitchen Set (8pc)',   brand:'GreenLeaf',   category:'Kitchen',  price:2499,   original:3499,   discount:29, rating:4.7, reviews:876,  img:'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:10, name:'Ceramic Non-Stick Cookware Set', brand:'CeraChef',    category:'Kitchen',  price:4999,   original:6999,   discount:29, rating:4.6, reviews:654,  img:'https://images.unsplash.com/photo-1585515320310-259814833e62?w=600&q=80', verified:true,  isNew:true,  isHot:false, onSale:true  },
-  { id:11, name:'Stainless Steel Thermal Flask',  brand:'ThermoFlask', category:'Kitchen',  price:1299,   original:1799,   discount:28, rating:4.8, reviews:2890, img:'https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600&q=80', verified:false, isNew:false, isHot:true,  onSale:true  },
-  { id:12, name:'Premium Linen Casual Shirt',     brand:'ThreadCo',    category:'Apparel',  price:1899,   original:2499,   discount:24, rating:4.4, reviews:432,  img:'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?w=600&q=80', verified:false, isNew:true,  isHot:false, onSale:true  },
-  { id:13, name:'Yoga & Fitness Leggings',        brand:'FlexFit',     category:'Apparel',  price:1299,   original:1799,   discount:28, rating:4.6, reviews:987,  img:'https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=600&q=80', verified:true,  isNew:false, isHot:false, onSale:true  },
-  { id:14, name:'Samsung 55" QLED 4K Smart TV',  brand:'Samsung',     category:'Tech',     price:69999,  original:89990,  discount:22, rating:4.7, reviews:543,  img:'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=600&q=80', verified:true,  isNew:false, isHot:true,  onSale:true  },
-  { id:15, name:'Minimalist Leather Bifold Wallet', brand:'SlimCraft', category:'Lifestyle', price:899,   original:1299,   discount:31, rating:4.5, reviews:1203, img:'https://images.unsplash.com/photo-1627123424574-724758594e93?w=600&q=80', verified:false, isNew:false, isHot:false, onSale:true  },
-  { id:16, name:'Artisan Soy Scented Candle Set', brand:'LuxGlow',     category:'Lifestyle', price:1599,  original:1999,   discount:20, rating:4.8, reviews:764,  img:'https://images.unsplash.com/photo-1608181831718-c9e37e3b9d70?w=600&q=80', verified:false, isNew:true,  isHot:false, onSale:false },
-];
+const ALL_PRODUCTS = [];
 
 export default function CheckoutPage() {
   const [cartItems, setCartItems] = useState([]);
@@ -31,6 +13,7 @@ export default function CheckoutPage() {
   const [escrowMethod, setEscrowMethod] = useState('wallet'); // wallet | card | upi
   const [checkoutStep, setCheckoutStep] = useState('idle'); // idle | securing | success
   const [generatedOrderId, setGeneratedOrderId] = useState('');
+  const [orderSellers, setOrderSellers] = useState([]);
   
   // Form fields
   const [fullName, setFullName] = useState('');
@@ -41,29 +24,63 @@ export default function CheckoutPage() {
   const [stateName, setStateName] = useState('');
   const [pincode, setPincode] = useState('');
 
-  // Load items from localstorage
+  // Load items from localstorage and backend
   useEffect(() => {
-    try {
-      const storedCart = localStorage.getItem('emahu_cart');
-      if (storedCart) {
-        const parsed = JSON.parse(storedCart);
-        const matched = parsed.map(cItem => {
-          const prod = ALL_PRODUCTS.find(p => p.id === (typeof cItem === 'object' ? cItem.id : cItem));
-          if (prod) {
+    const loadCheckoutData = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/products');
+        const data = await res.json();
+        let formattedList = [];
+        if (data.success) {
+          formattedList = data.products.map(p => {
+            let mappedCategory = p.category;
+            if (p.category === 'Electronics') mappedCategory = 'Tech';
+            else if (p.category === 'Fitness' || p.category === 'Furniture') mappedCategory = 'Lifestyle';
+
             return {
-              ...prod,
-              quantity: cItem.quantity || 1,
-              selectedColor: cItem.color || 'Premium Black',
-              selectedSize: cItem.size || 'Regular'
+              id: p.id || p._id,
+              name: p.name,
+              brand: p.brand || p.seller?.name || 'Emahu Seller',
+              category: mappedCategory,
+              price: p.price,
+              original: p.comparePrice || p.price,
+              discount: p.comparePrice ? Math.round(((p.comparePrice - p.price) / p.comparePrice) * 100) : 0,
+              rating: p.rating || 4.7,
+              reviews: p.reviews || 84,
+              img: p.image || '📦',
+              verified: true,
+              isNew: true,
+              isHot: false,
+              onSale: p.comparePrice ? (p.price < p.comparePrice) : false,
+              seller: p.seller || { name: p.brand || 'Emahu Seller', email: 'support@emahu.com', phone: '+91 99999 99999' }
             };
-          }
-          return null;
-        }).filter(Boolean);
-        setCartItems(matched);
+          });
+        }
+
+        const storedCart = localStorage.getItem('emahu_cart');
+        if (storedCart) {
+          const parsed = JSON.parse(storedCart);
+          const matched = parsed.map(cItem => {
+            const cItemId = typeof cItem === 'object' ? cItem.id : cItem;
+            const prod = formattedList.find(p => p.id.toString() === cItemId.toString());
+            if (prod) {
+              return {
+                ...prod,
+                quantity: cItem.quantity || 1,
+                selectedColor: cItem.color || 'Premium Black',
+                selectedSize: cItem.size || 'Regular'
+              };
+            }
+            return null;
+          }).filter(Boolean);
+          setCartItems(matched);
+        }
+      } catch (err) {
+        console.error(err);
       }
-    } catch (e) {
-      console.error(e);
-    }
+    };
+
+    loadCheckoutData();
   }, []);
 
   const subtotal = cartItems.reduce((acc, p) => acc + (p.price * p.quantity), 0);
@@ -76,13 +93,23 @@ export default function CheckoutPage() {
     if (cartItems.length === 0) return;
 
     // Validate fields
-    if (!fullName || !phone || !email || !address || !city || !stateName || !pincode) {
+    if (
+      !fullName.trim() ||
+      !phone.trim() ||
+      !email.trim() ||
+      !address.trim() ||
+      !city.trim() ||
+      !stateName.trim() ||
+      !pincode.trim()
+    ) {
       alert('Please fill out all address and contact fields.');
       return;
     }
 
-    const orderId = `EMH_${Math.floor(100000 + Math.random() * 900000)}`;
-    setGeneratedOrderId(orderId);
+    // Save unique sellers for success screen before clearing cartItems
+    const sellers = cartItems.map(p => p.seller || { name: p.brand || 'Emahu Seller', email: 'support@emahu.com', phone: '+91 99999 99999' });
+    const unique = Array.from(new Map(sellers.map(s => [s.email + s.name, s])).values());
+    setOrderSellers(unique);
 
     // Step 1: Secure Escrow Locking Animation
     setCheckoutStep('securing');
@@ -92,31 +119,89 @@ export default function CheckoutPage() {
       try {
         const storedOrdersStr = localStorage.getItem('emahu_orders') || '[]';
         const storedOrders = JSON.parse(storedOrdersStr);
-        storedOrders.push({
-          orderId: orderId,
-          date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
-          items: cartItems.map(p => ({
-            name: p.name,
-            price: p.price,
-            quantity: p.quantity,
-            brand: p.brand,
-            img: p.img
-          })),
-          total: grandTotal,
-          status: '🔒 ESCROW VAULT SECURED',
-          deliveryAddress: {
-            fullName,
-            phone,
-            email,
-            address,
-            city,
-            stateName,
-            pincode
-          },
-          shippingSpeed,
-          escrowMethod
+        const notifications = JSON.parse(localStorage.getItem('emahu_notifications') || '[]');
+
+        // Group cart items by seller
+        const itemsBySeller = {};
+        cartItems.forEach(item => {
+          // Use all available seller identifiers to build the sellerId key
+          const sellerId = item.seller?._id || item.seller?.id || item.seller?.email || 'default_seller';
+          if (!itemsBySeller[sellerId]) {
+            itemsBySeller[sellerId] = [];
+          }
+          itemsBySeller[sellerId].push(item);
         });
+
+        const placedOrderIds = [];
+
+        Object.entries(itemsBySeller).forEach(([sellerId, items]) => {
+          const orderId = `EMH_${Math.floor(100000 + Math.random() * 900000)}`;
+          placedOrderIds.push(orderId);
+
+          const sellerSubtotal = items.reduce((acc, p) => acc + (p.price * p.quantity), 0);
+          const sellerShippingFee = sellerSubtotal === 0 ? 0 : (shippingSpeed === 'express' ? (sellerSubtotal > 50000 ? 0 : 199) : (sellerSubtotal > 50000 ? 0 : 99));
+          const sellerTaxAmount = Math.round(sellerSubtotal * 0.18);
+          const sellerGrandTotal = sellerSubtotal + sellerShippingFee + sellerTaxAmount;
+
+          // Capture the actual seller object from the first item in this group
+          const sellerObj = items[0]?.seller || null;
+
+          storedOrders.push({
+            orderId: orderId,
+            // Store seller identity with all possible ID formats for reliable dashboard matching
+            sellerId: sellerObj?._id || sellerObj?.id || sellerId,
+            sellerEmail: sellerObj?.email || null,
+            userId: localStorage.getItem('emahu_buyer_user') ? JSON.parse(localStorage.getItem('emahu_buyer_user')).id : 'guest_buyer',
+            date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }),
+            items: items.map(p => ({
+              productId: p.id,        // ← critical: used by seller dashboard to match by product ownership
+              name: p.name,
+              price: p.price,
+              quantity: p.quantity,
+              brand: p.brand,
+              img: p.img,
+              seller: p.seller || { name: p.brand || 'Emahu Seller', email: 'support@emahu.com', phone: '+91 99999 99999' }
+            })),
+            total: sellerGrandTotal,
+            status: 'PENDING_APPROVAL',
+            timeline: [
+              { status: 'PENDING_APPROVAL', label: 'Payment Completed', desc: '⏳ Waiting for Seller Approval', date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) }
+            ],
+            deliveryAddress: {
+              fullName,
+              phone,
+              email,
+              address,
+              city,
+              stateName,
+              pincode
+            },
+            shippingSpeed,
+            escrowMethod
+          });
+
+          // Push Notifications
+          notifications.unshift({
+            id: `notif_${Date.now()}_buyer_${orderId}`,
+            title: 'Payment Success',
+            message: `Your payment of ₹${sellerGrandTotal.toLocaleString('en-IN')} has been locked. Waiting for seller approval for Order #${orderId}.`,
+            role: 'buyer',
+            date: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            read: false
+          });
+          notifications.unshift({
+            id: `notif_${Date.now()}_seller_${orderId}`,
+            title: 'New Order Received',
+            message: `New order received. Approval required for Order #${orderId}.`,
+            role: 'seller',
+            date: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            read: false
+          });
+        });
+
+        setGeneratedOrderId(placedOrderIds.join(', '));
         localStorage.setItem('emahu_orders', JSON.stringify(storedOrders));
+        localStorage.setItem('emahu_notifications', JSON.stringify(notifications));
       } catch (err) {
         console.error(err);
       }
@@ -160,7 +245,7 @@ export default function CheckoutPage() {
             </div>
             <h2>Escrow Lock Guaranteed Successfully!</h2>
             <p className="co-success-desc">
-              Transaction ID <strong>{generatedOrderId}</strong> has been secured in Emahu's Smart Escrow Vault. 
+              Transaction ID <strong>{generatedOrderId}</strong> has been secured in Emahu&apos;s Smart Escrow Vault. 
               The merchant will be notified to package and route your products via our EV Transit grid. 
               Your capital remains locked and protected until you physically inspect and approve delivery!
             </p>
@@ -178,6 +263,18 @@ export default function CheckoutPage() {
                 <span>Locked Amount:</span>
                 <strong style={{ color: '#4169e1', fontSize: '1.1rem' }}>₹{grandTotal.toLocaleString('en-IN')}</strong>
               </div>
+
+              {orderSellers.map((seller, sIdx) => (
+                <div key={sIdx} className="co-seller-info-block" style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '12px', marginTop: '12px', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0f172a', fontWeight: '600', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.9rem' }}>🚚 Your delivery is handled by:</span>
+                    <strong style={{ color: '#4169e1' }}>{seller.name || 'Emahu Seller'}</strong>
+                  </div>
+                  <div style={{ color: '#475569', fontSize: '0.85rem', paddingLeft: '4px' }}>
+                    <span>Email: <strong>{seller.email || 'N/A'}</strong></span>
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="co-success-actions">
@@ -372,7 +469,7 @@ export default function CheckoutPage() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4169e1" strokeWidth="3">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
-                    <span><strong>Military-grade Protection:</strong> Funds remain inside your safety locked escrow wallet and will not be transferred to the merchant's balance until you verify delivery status in your orders pane.</span>
+                    <span><strong>Military-grade Protection:</strong> Funds remain inside your safety locked escrow wallet and will not be transferred to the merchant&apos;s balance until you verify delivery status in your orders pane.</span>
                   </div>
                 </div>
 

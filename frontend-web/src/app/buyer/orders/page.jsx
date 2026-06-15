@@ -14,40 +14,57 @@ export default function OrdersPage() {
 
   // Load orders history from localStorage on mount
   useEffect(() => {
-    try {
-      const storedOrders = localStorage.getItem('emahu_orders');
-      if (storedOrders) {
-        setOrders(JSON.parse(storedOrders));
-      } else {
-        // Mock seed orders if none exist for a professional look
-        const seedOrders = [
-          {
-            orderId: 'EMH_772918',
-            date: '24 May 2026',
-            items: [
-              { name: 'Sony WH-1000XM5 Headphones', price: 26999, quantity: 1, brand: 'Sony', img: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80' }
-            ],
-            total: 31958, // Price + Tax + Shipping
-            status: '🔒 ESCROW VAULT SECURED',
-            shippingSpeed: 'standard',
-            escrowMethod: 'wallet',
-            deliveryAddress: {
-              fullName: 'Rahul Sharma',
-              phone: '+91 98765 43210',
-              email: 'rahul@example.com',
-              address: 'Block A, Apex Greens, Sector 45',
-              city: 'Noida',
-              stateName: 'Uttar Pradesh',
-              pincode: '201303'
+    const loadRealOrders = () => {
+      try {
+        const storedOrders = localStorage.getItem('emahu_orders');
+        if (storedOrders) {
+          setOrders(JSON.parse(storedOrders));
+        } else {
+          // Mock seed orders if none exist for a professional look
+          const seedOrders = [
+            {
+              orderId: 'EMH_772918',
+              date: '24 May 2026',
+              items: [
+                {
+                  name: 'Sony WH-1000XM5 Headphones',
+                  price: 26999,
+                  quantity: 1,
+                  brand: 'Sony',
+                  img: 'https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?w=600&q=80',
+                  seller: {
+                    name: 'Sony India Retail',
+                    email: 'retail@sony.co.in',
+                    phone: '+91 1800 103 7799'
+                  }
+                }
+              ],
+              total: 31958, // Price + Tax + Shipping
+              status: '🔒 ESCROW VAULT SECURED',
+              shippingSpeed: 'standard',
+              escrowMethod: 'wallet',
+              deliveryAddress: {
+                fullName: 'Rahul Sharma',
+                phone: '+91 98765 43210',
+                email: 'rahul@example.com',
+                address: 'Block A, Apex Greens, Sector 45',
+                city: 'Noida',
+                stateName: 'Uttar Pradesh',
+                pincode: '201303'
+              }
             }
-          }
-        ];
-        localStorage.setItem('emahu_orders', JSON.stringify(seedOrders));
-        setOrders(seedOrders);
+          ];
+          localStorage.setItem('emahu_orders', JSON.stringify(seedOrders));
+          setOrders(seedOrders);
+        }
+      } catch(e) {
+        console.error(e);
       }
-    } catch(e) {
-      console.error(e);
-    }
+    };
+
+    loadRealOrders();
+    window.addEventListener('storage', loadRealOrders);
+    return () => window.removeEventListener('storage', loadRealOrders);
   }, []);
 
   // Action: Release funds from Escrow Vault directly to Merchant
@@ -147,7 +164,7 @@ export default function OrdersPage() {
           /* Orders list */
           <div className="orders-list">
             {orders.map(ord => {
-              const isDisputed = disputedOrdersList.includes(ord.orderId) || ord.status.includes('DISPUTED');
+              const isDisputed = disputedOrdersList.includes(ord.orderId) || ord.status.includes('DISPUTED') || ord.sellerRejected;
               const isReleased = releasedOrdersList.includes(ord.orderId) || ord.status.includes('RELEASED');
               const isLocked = !isDisputed && !isReleased;
               
@@ -214,6 +231,23 @@ export default function OrdersPage() {
                             <strong>{ord.deliveryAddress.address}, {ord.deliveryAddress.city}, {ord.deliveryAddress.stateName} - {ord.deliveryAddress.pincode}</strong>
                           </div>
                         </div>
+
+                        <div className="delivery-info-grid" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed #cbd5e1' }}>
+                          <div className="grid-full-width">
+                            <span>Handling Merchant(s)</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+                              {Array.from(new Map(ord.items.map(item => {
+                                const seller = item.seller || { name: item.brand || 'Emahu Seller', email: 'support@emahu.com', phone: '+91 99999 99999' };
+                                return [seller.name + seller.phone, seller];
+                              })).values()).map((seller, sIdx) => (
+                                <div key={sIdx} style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', alignItems: 'center', fontSize: '0.85rem' }}>
+                                  <span style={{ color: '#0f172a', fontWeight: '600' }}>🚚 Your delivery is handled by this seller: {seller.name}</span>
+                                  <span style={{ color: '#475569' }}>(Email: {seller.email})</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -229,7 +263,7 @@ export default function OrdersPage() {
                           </svg>
                           <span>Vault released successfully. Merchant has received the checkout funds. Transaction closed in full.</span>
                         </>
-                      ) : isDisputed ? (
+                      ) : (disputedOrdersList.includes(ord.orderId) || ord.status.includes('DISPUTED')) ? (
                         <>
                           <svg className="footer-icon-disputed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5">
                             <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -238,6 +272,27 @@ export default function OrdersPage() {
                           </svg>
                           <span style={{ color: '#ef4444', fontWeight: '600' }}>Transaction disputed! Vault locked indefinitely. Funds will not be sent to seller until inspection dispute resolves.</span>
                         </>
+                      ) : ord.sellerRejected ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3">
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                            <span style={{ color: '#ef4444', fontWeight: '700' }}>❌ Order Rejected by Seller</span>
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '24px' }}>Escrow Vault Locked: The seller rejected this order. Capital will be automatically returned to your wallet.</span>
+                        </div>
+                      ) : ord.sellerConfirmed ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="3">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            <span style={{ color: '#10b981', fontWeight: '700' }}>✓ Delivery Confirmed by Seller</span>
+                          </div>
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', marginLeft: '24px' }}>Escrow Protected: Money remains inside safety vault. Seller cannot withdraw balance.</span>
+                        </div>
                       ) : (
                         <>
                           <svg className="footer-icon-locked" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4169e1" strokeWidth="2.5">
@@ -253,7 +308,7 @@ export default function OrdersPage() {
                       <Link href={`/buyer/track?id=${ord.orderId}`} className="orders-btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '10px 18px', fontSize: '0.8rem', fontWeight: '750', textDecoration: 'none', border: '1.5px solid #cbd5e1', color: '#475569', borderRadius: '6px' }}>
                         🚛 Track Transit
                       </Link>
-                      {!isReleased && !isDisputed && (
+                      {!isReleased && !isDisputed && (ord.sellerConfirmed || ['DELIVERY_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'COMPLETED'].includes(ord.status)) && (
                         <>
                           <button className="orders-btn-outline-danger" onClick={() => setDisputedOrderId(ord.orderId)}>
                             ⚠️ Raise Dispute / Reject
