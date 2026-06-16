@@ -691,7 +691,7 @@ export default function OrderTrackingPage() {
       <nav className="track-breadcrumb">
         <Link href="/">Home</Link>
         <span>/</span>
-        <Link href="/buyer">Buyer</Link>
+        <Link href="/buyer/products">Buyer</Link>
         <span>/</span>
         <span style={{ color: '#1a1a1a' }}>Order Tracking</span>
       </nav>

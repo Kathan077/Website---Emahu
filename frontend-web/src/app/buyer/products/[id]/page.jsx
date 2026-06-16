@@ -325,7 +325,7 @@ export default function ProductDetailPage() {
       {/* Breadcrumb */}
       <nav className="pd-breadcrumb">
         <Link href="/">Home</Link> <span>/</span>
-        <Link href="/buyer">Buyer</Link> <span>/</span>
+        <Link href="/buyer/products">Buyer</Link> <span>/</span>
         <Link href="/buyer/products">Collection</Link> <span>/</span>
         <span style={{ color:'#0d0d0d' }}>{product.name}</span>
       </nav>

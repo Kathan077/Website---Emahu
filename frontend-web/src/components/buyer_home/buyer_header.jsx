@@ -138,7 +138,7 @@ export default function BuyerHeader() {
       <div className="bh-header__container">
         
         {/* Left Side: Cashify-Style Circle-Check Logo */}
-        <Link href="/buyer" className="bh-logo">
+        <Link href="/buyer/products" className="bh-logo">
           <div className="bh-logo__icon-wrap">
             <svg className="bh-logo__svg" width="28" height="28" viewBox="0 0 28 28" fill="none">
               {/* Solid thick circular ring */}

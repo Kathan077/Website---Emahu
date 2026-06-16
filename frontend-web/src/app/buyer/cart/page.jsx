@@ -259,7 +259,7 @@ export default function CartPage() {
       <nav className="cart-breadcrumb">
         <Link href="/">Home</Link>
         <span>/</span>
-        <Link href="/buyer">Buyer</Link>
+        <Link href="/buyer/products">Buyer</Link>
         <span>/</span>
         <span style={{ color: '#1a1a1a' }}>Shopping Cart</span>
       </nav>
@@ -495,7 +495,7 @@ export default function CartPage() {
                   <Link href="/buyer/products" className="wl-btn-outline" onClick={() => setCheckoutStep('idle')} style={{ textDecoration: 'none', textAlign: 'center' }}>
                     Keep Buying Products
                   </Link>
-                  <Link href="/buyer" className="wl-btn-solid" onClick={() => setCheckoutStep('idle')} style={{ textDecoration: 'none', textAlign: 'center' }}>
+                  <Link href="/buyer/products" className="wl-btn-solid" onClick={() => setCheckoutStep('idle')} style={{ textDecoration: 'none', textAlign: 'center' }}>
                     Back to Home Screen
                   </Link>
                 </div>

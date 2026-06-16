@@ -20,7 +20,7 @@ export default function BuyerRegister() {
   // If already logged in, redirect directly to the buyer account marketplace home
   useEffect(() => {
     if (localStorage.getItem('emahu_buyer_logged_in') === 'true') {
-      router.replace('/buyer');
+      router.replace('/buyer/products');
     }
   }, [router]);
 
@@ -49,7 +49,7 @@ export default function BuyerRegister() {
           setLoading(false);
           setSuccess(true);
           setTimeout(() => {
-            router.replace('/buyer');
+            router.replace('/buyer/products');
           }, 1000);
         } catch (err) {
           setLoading(false);
@@ -176,7 +176,7 @@ export default function BuyerRegister() {
         setSuccess(true);
 
         setTimeout(() => {
-          router.replace('/buyer');
+          router.replace('/buyer/products');
         }, 1500);
       } catch (err) {
         setLoading(false);

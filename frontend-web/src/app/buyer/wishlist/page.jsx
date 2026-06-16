@@ -174,7 +174,7 @@ export default function WishlistPage() {
       <nav className="wl-breadcrumb">
         <Link href="/">Home</Link>
         <span>/</span>
-        <Link href="/buyer">Buyer</Link>
+        <Link href="/buyer/products">Buyer</Link>
         <span>/</span>
         <span style={{ color: '#1a1a1a' }}>My Wishlist</span>
       </nav>

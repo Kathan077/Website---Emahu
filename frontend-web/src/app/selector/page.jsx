@@ -26,7 +26,7 @@ export default function RoleSelector() {
     }
 
     if (localStorage.getItem('emahu_buyer_logged_in') === 'true') {
-      router.replace('/buyer');
+      router.replace('/buyer/products');
     } else if (localStorage.getItem('emahu_seller_logged_in') === 'true') {
       router.replace('/seller/dashboard');
     }

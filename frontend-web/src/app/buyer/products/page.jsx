@@ -216,7 +216,7 @@ export default function ProductsPage() {
       <nav className="bp-breadcrumb">
         <Link href="/">Home</Link>
         <span>/</span>
-        <Link href="/buyer">Buyer</Link>
+        <Link href="/buyer/products">Buyer</Link>
         <span>/</span>
         <span style={{ color: '#1a1a1a' }}>Collection</span>
       </nav>

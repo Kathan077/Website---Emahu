@@ -319,7 +319,7 @@ export default function CheckoutPage() {
       <nav className="co-breadcrumb">
         <Link href="/">Home</Link>
         <span>/</span>
-        <Link href="/buyer">Buyer</Link>
+        <Link href="/buyer/products">Buyer</Link>
         <span>/</span>
         <Link href="/buyer/cart">Cart</Link>
         <span>/</span>

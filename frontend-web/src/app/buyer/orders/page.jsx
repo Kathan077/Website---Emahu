@@ -323,7 +323,7 @@ export default function OrdersPage() {
       <nav className="orders-breadcrumb">
         <Link href="/">Home</Link>
         <span>/</span>
-        <Link href="/buyer">Buyer</Link>
+        <Link href="/buyer/products">Buyer</Link>
         <span>/</span>
         <span style={{ color: '#1a1a1a' }}>My Locked Orders</span>
       </nav>
