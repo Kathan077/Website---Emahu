@@ -38,7 +38,7 @@ export default function SellerFooter() {
               </div>
             </Link>
             <p className="sff-brand__desc">
-              India\'s most transparent, commission-friendly digital marketplace. Empowers local vendors to list products globally and secure guaranteed weekly Friday payouts.
+              {"India's most transparent, commission-friendly digital marketplace. Empowers local vendors to list products globally and secure guaranteed weekly Friday payouts."}
             </p>
           </div>
 

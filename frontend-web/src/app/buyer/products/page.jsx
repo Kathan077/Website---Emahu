@@ -80,6 +80,8 @@ export default function ProductsPage() {
         rating: p.rating || 4.7,
         reviews: p.reviews || 84,
         img: p.image || '📦',
+        stock: p.stock,
+        status: p.status,
         verified: true,
         isNew: true,
         isHot: false,
@@ -98,12 +100,15 @@ export default function ProductsPage() {
   useEffect(() => {
     try {
       const storedWish = localStorage.getItem('emahu_wishlist');
-      if (storedWish) setWishlist(JSON.parse(storedWish));
+      if (storedWish) {
+        const parsedWish = JSON.parse(storedWish);
+        setTimeout(() => setWishlist(parsedWish), 0);
+      }
       
       const storedCart = localStorage.getItem('emahu_cart');
       if (storedCart) {
         const parsed = JSON.parse(storedCart);
-        setCartAdded(parsed.map(x => typeof x === 'object' ? x.id : x));
+        setTimeout(() => setCartAdded(parsed.map(x => typeof x === 'object' ? x.id : x)), 0);
       }
     } catch (e) {
       console.error(e);
@@ -422,6 +427,13 @@ export default function ProductsPage() {
                   {/* Sale badge — only if no wishlist overlap */}
                   {p.onSale && <span className="bp-card__sale-badge" style={{right: p.onSale ? '46px' : '10px'}}>−{p.discount}%</span>}
 
+                  {/* Out of Stock badge */}
+                  {p.stock <= 0 && (
+                    <span className="bp-card__sale-badge" style={{ left: '10px', right: 'auto', backgroundColor: '#ef4444', color: '#fff' }}>
+                      Out of Stock
+                    </span>
+                  )}
+
                   {/* Wishlist — always top right */}
                   <button
                     className={`bp-card__wishlist ${wishlist.includes(p.id) ? 'bp-card__wishlist--active' : ''}`}
@@ -458,8 +470,12 @@ export default function ProductsPage() {
                 <button
                   className={`bp-card__add-cart ${cartAdded.includes(p.id) ? 'bp-card__add-cart--added' : ''}`}
                   onClick={e => addToCart(e, p.id)}
+                  disabled={p.stock <= 0}
+                  style={p.stock <= 0 ? { opacity: 0.6, cursor: 'not-allowed', backgroundColor: '#4b5563' } : {}}
                 >
-                  {cartAdded.includes(p.id) ? (
+                  {p.stock <= 0 ? (
+                    'Out of Stock'
+                  ) : cartAdded.includes(p.id) ? (
                     <>
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                       Added to Cart!

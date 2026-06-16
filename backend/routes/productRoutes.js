@@ -8,7 +8,8 @@ const {
   deleteProduct,
   verifyProduct,
   resubmitProduct,
-  adminDecision
+  adminDecision,
+  getAdminProducts
 } = require('../controllers/productController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 
@@ -21,6 +22,9 @@ router.route('/')
 router.route('/my')
   .get(protect, authorize('seller'), getMyProducts);
 
+router.route('/admin/all')
+  .get(protect, authorize('admin'), getAdminProducts);
+
 router.route('/:id/verify')
   .put(protect, authorize('seller'), verifyProduct);
 
@@ -28,7 +32,7 @@ router.route('/:id/resubmit')
   .put(protect, authorize('seller'), resubmitProduct);
 
 router.route('/:id/admin-decision')
-  .put(adminDecision);
+  .put(protect, authorize('admin'), adminDecision);
 
 router.route('/:id')
   .get(getProductById)

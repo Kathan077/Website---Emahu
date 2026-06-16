@@ -367,7 +367,7 @@ export default function OrdersPage() {
               </svg>
             </div>
             <h2>No Transaction History Found</h2>
-            <p>You haven't initiated any locked escrow orders yet. Fill your shopping cart with certified products and check out to start.</p>
+            <p>{"You haven't initiated any locked escrow orders yet. Fill your shopping cart with certified products and check out to start."}</p>
             <Link href="/buyer/products" className="orders-explore-btn">
               Start Shopping
             </Link>

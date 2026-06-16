@@ -164,7 +164,7 @@ export default function DeliveryLandingPage() {
                 </svg>
               </div>
               <h3>Smart Hub Routing</h3>
-              <p>Optimize your carrier mileage with EMAHU's automated hub dispatch routes.</p>
+              <p>{"Optimize your carrier mileage with EMAHU's automated hub dispatch routes."}</p>
               <div className="visual-stats">
                 <div className="stat-item">
                   <span className="stat-num">8+</span>
@@ -317,7 +317,7 @@ export default function DeliveryLandingPage() {
                           ))
                         ) : (
                           <div className="lp-dropdown-item lp-dropdown-item--custom" style={{ cursor: 'default' }}>
-                            <span>Use custom: "{operatingLocation}"</span>
+                            <span>Use custom: &quot;{operatingLocation}&quot;</span>
                           </div>
                         )}
                       </div>

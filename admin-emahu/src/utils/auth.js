@@ -1,13 +1,9 @@
 /**
- * Authentication and Session Management Utility for EMAHU Web Client
- * Coordinates client-side fetch requests to the secure backend JWT API on Port 5000.
+ * Authentication and Session Management Utility for Standalone Admin Panel
  */
 
 const API_BASE_URL = 'http://localhost:5000/api/auth';
 
-/**
- * Helper to get default fetch headers
- */
 const getHeaders = (token = null) => {
   const headers = {
     'Content-Type': 'application/json',
@@ -18,9 +14,6 @@ const getHeaders = (token = null) => {
   return headers;
 };
 
-/**
- * Securely register a user (buyer, seller, delivery)
- */
 export async function registerUser({ name, email, password, role, phone, address }) {
   try {
     const response = await fetch(`${API_BASE_URL}/register`, {
@@ -40,15 +33,12 @@ export async function registerUser({ name, email, password, role, phone, address
   }
 }
 
-/**
- * Securely log in user & retrieve dual tokens
- */
-export async function loginUser(email, password) {
+export async function loginUser(email, password, twoFactorCode) {
   try {
     const response = await fetch(`${API_BASE_URL}/login`, {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, twoFactorCode }),
     });
 
     const data = await response.json();
@@ -62,31 +52,6 @@ export async function loginUser(email, password) {
   }
 }
 
-/**
- * Authenticate via Google payload
- */
-export async function googleLoginUser({ email, name, role }) {
-  try {
-    const response = await fetch(`${API_BASE_URL}/google`, {
-      method: 'POST',
-      headers: getHeaders(),
-      body: JSON.stringify({ email, name, role }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Google login failed');
-    }
-    return data;
-  } catch (error) {
-    console.error('API Google Login Error:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Clear session cookies on the backend and destroy database token record
- */
 export async function logoutUser() {
   try {
     const response = await fetch(`${API_BASE_URL}/logout`, {
@@ -100,9 +65,6 @@ export async function logoutUser() {
   }
 }
 
-/**
- * Retrieve user details using standard access token
- */
 export async function getProfile(token) {
   try {
     const response = await fetch(`${API_BASE_URL}/me`, {
@@ -121,45 +83,33 @@ export async function getProfile(token) {
   }
 }
 
-/**
- * Client Helper: Save user credentials & token upon login/register
- */
-export function saveAuthSession(data, role) {
+export function saveAuthSession(data, role = 'admin') {
   if (typeof window === 'undefined') return;
 
-  const keyPrefix = role === 'seller' ? 'emahu_seller' : role === 'delivery' ? 'emahu_delivery' : role === 'admin' ? 'emahu_admin' : 'emahu_buyer';
+  const keyPrefix = 'emahu_admin';
 
   localStorage.setItem(`${keyPrefix}_logged_in`, 'true');
   localStorage.setItem(`${keyPrefix}_token`, data.accessToken);
   localStorage.setItem(`${keyPrefix}_user`, JSON.stringify(data.user));
 
-  // Dispatch global storage event so Next.js header component receives update instantly
   window.dispatchEvent(new Event('storage'));
 }
 
-/**
- * Client Helper: Clear user credentials & tokens upon signout
- */
-export function clearAuthSession(role) {
+export function clearAuthSession(role = 'admin') {
   if (typeof window === 'undefined') return;
 
-  const keyPrefix = role === 'seller' ? 'emahu_seller' : role === 'delivery' ? 'emahu_delivery' : role === 'admin' ? 'emahu_admin' : 'emahu_buyer';
+  const keyPrefix = 'emahu_admin';
 
   localStorage.removeItem(`${keyPrefix}_logged_in`);
-  localStorage.removeItem(`${keyPrefix}_registered`);
   localStorage.removeItem(`${keyPrefix}_token`);
   localStorage.removeItem(`${keyPrefix}_user`);
 
-  // Dispatch global storage event so Next.js header component receives update instantly
   window.dispatchEvent(new Event('storage'));
 }
 
-/**
- * Client Helper: Check if user session is active
- */
-export function checkIsLoggedIn(role) {
+export function checkIsLoggedIn(role = 'admin') {
   if (typeof window === 'undefined') return false;
 
-  const keyPrefix = role === 'seller' ? 'emahu_seller' : role === 'delivery' ? 'emahu_delivery' : role === 'admin' ? 'emahu_admin' : 'emahu_buyer';
+  const keyPrefix = 'emahu_admin';
   return localStorage.getItem(`${keyPrefix}_logged_in`) === 'true';
 }

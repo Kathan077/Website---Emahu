@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import BuyerHeader from '@/components/buyer_home/buyer_header';
+import { logAnalyticsEvent } from '@/utils/analytics';
 import './checkout.css';
 
 const ALL_PRODUCTS = [];
@@ -75,6 +76,20 @@ export default function CheckoutPage() {
             return null;
           }).filter(Boolean);
           setCartItems(matched);
+
+          // Log initiate_checkout event for each item
+          matched.forEach(item => {
+            if (item.seller) {
+              const sId = item.seller._id || item.seller.id || item.seller;
+              if (sId) {
+                logAnalyticsEvent({
+                  type: 'initiate_checkout',
+                  productId: item.id || item._id,
+                  sellerId: sId
+                });
+              }
+            }
+          });
         }
 
         // Auto-fill profile address if logged in

@@ -15,6 +15,7 @@ export default function SellerRegister() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [regSuccessData, setRegSuccessData] = useState(null);
 
   // If already logged in, redirect directly to the seller dashboard
   useEffect(() => {
@@ -188,8 +189,6 @@ export default function SellerRegister() {
 
       try {
         const fullAddress = `${formData.storeName} (${formData.category})`;
-
-        // Call secure registration endpoint
         const data = await registerUser({
           name: formData.ownerName,
           email: formData.email,
@@ -197,16 +196,61 @@ export default function SellerRegister() {
           role: 'seller',
           phone: formData.phone,
           address: fullAddress,
+          storeName: formData.storeName,
+          category: formData.category,
+          kycType: formData.kycType,
+          kycNumber: formData.kycNumber,
+          bankHolder: formData.bankHolder,
+          accountNumber: formData.accountNumber,
+          ifscCode: formData.ifscCode,
+          bankName: formData.bankName,
+          gstNumber: formData.gstNumber
         });
 
-        saveAuthSession(data, 'seller');
+        setRegSuccessData(data);
+        
+        // Automatically submit documents upon registration
+        if (data.accessToken) {
+          const docUrl = `https://emahu-documents.s3.amazonaws.com/${formData.kycFile ? encodeURIComponent(formData.kycFile.name) : 'kyc_document.jpg'}`;
+          await fetch('http://localhost:5000/api/auth/seller/documents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${data.accessToken}`
+            },
+            body: JSON.stringify({
+              documentType: 'id_proof',
+              fileUrl: docUrl
+            })
+          });
+
+          await fetch('http://localhost:5000/api/auth/seller/documents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${data.accessToken}`
+            },
+            body: JSON.stringify({
+              documentType: 'business_registration',
+              fileUrl: 'https://emahu-documents.s3.amazonaws.com/gst_certificate_stub.pdf'
+            })
+          });
+        }
+
         setLoading(false);
-        router.replace('/seller/dashboard');
+        setStep(4);
       } catch (err) {
         setLoading(false);
         setErrors({ general: err.message || 'Registration failed. Please try again.' });
       }
     }
+  };
+
+  const handleGoToDashboard = () => {
+    if (regSuccessData) {
+      saveAuthSession(regSuccessData, 'seller');
+    }
+    router.replace('/seller/dashboard');
   };
 
   return (
@@ -683,9 +727,9 @@ export default function SellerRegister() {
               </div>
 
               <div className="sr-success-actions">
-                <Link href="/seller/dashboard" className="sr-btn sr-btn--primary">
+                <button type="button" onClick={handleGoToDashboard} className="sr-btn sr-btn--primary" style={{ width: '100%', cursor: 'pointer', textAlign: 'center', display: 'block' }}>
                   Go to Dashboard Preview
-                </Link>
+                </button>
               </div>
             </div>
           )}

@@ -29,8 +29,8 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: {
-        values: ['buyer', 'seller', 'delivery'],
-        message: '{VALUE} is not a valid role. Allowed roles are: buyer, seller, delivery'
+        values: ['buyer', 'seller', 'delivery', 'admin'],
+        message: '{VALUE} is not a valid role. Allowed roles are: buyer, seller, delivery, admin'
       },
       default: 'buyer'
     },
@@ -41,6 +41,60 @@ const userSchema = new mongoose.Schema(
     address: {
       type: String,
       trim: true
+    },
+    storeName: {
+      type: String,
+      trim: true
+    },
+    category: {
+      type: String,
+      trim: true
+    },
+    kycType: {
+      type: String,
+      enum: ['pan', 'aadhaar'],
+      default: 'pan'
+    },
+    kycNumber: {
+      type: String,
+      trim: true
+    },
+    bankHolder: {
+      type: String,
+      trim: true
+    },
+    accountNumber: {
+      type: String,
+      trim: true
+    },
+    ifscCode: {
+      type: String,
+      trim: true
+    },
+    bankName: {
+      type: String,
+      trim: true
+    },
+    gstNumber: {
+      type: String,
+      trim: true
+    },
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected', 'more_info_requested'],
+      default: 'approved'
+    },
+    verificationFeedback: {
+      type: String,
+      default: ''
+    },
+    twoFactorSecret: {
+      type: String,
+      select: false
+    },
+    isTwoFactorEnabled: {
+      type: Boolean,
+      default: false
     }
   },
   {
@@ -51,7 +105,7 @@ const userSchema = new mongoose.Schema(
 // Encrypt password using bcrypt before saving user
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
-    next();
+    return next();
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

@@ -164,7 +164,7 @@ export function BuyerReviews() {
                     </svg>
                   ))}
                 </div>
-                <p className="bx-review-card__quote">"{rev.quote}"</p>
+                <p className="bx-review-card__quote">&quot;{rev.quote}&quot;</p>
               </div>
 
               {/* Card Footer Info */}
@@ -369,7 +369,7 @@ export function BuyerEscrowAssurance() {
               <div>
                 <h3 className="bx-escrow-pillar__title">Buyer Escrow Vault</h3>
                 <p className="bx-escrow-pillar__desc">
-                  Every order checkouts into a secure bank-grade escrow. The seller cannot withdraw the transaction amount until you inspect the delivery at your door and click 'Verify Delivery'.
+                  {"Every order checkouts into a secure bank-grade escrow. The seller cannot withdraw the transaction amount until you inspect the delivery at your door and click 'Verify Delivery'."}
                 </p>
               </div>
             </div>

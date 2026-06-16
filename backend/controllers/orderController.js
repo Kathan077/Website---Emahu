@@ -20,6 +20,24 @@ exports.createOrder = async (req, res) => {
     // Ensure database insert runs every time
     const order = await Order.create(orderData);
     
+    // Decrease stock levels and update sales count
+    if (order.items && order.items.length > 0) {
+      const Product = require('../models/Product');
+      for (const item of order.items) {
+        try {
+          const product = await Product.findById(item.productId);
+          if (product) {
+            product.stock = Math.max(0, product.stock - (item.quantity || 1));
+            product.sales = (product.sales || 0) + (item.quantity || 1);
+            await product.save();
+            console.log(`Updated product ${item.productId}: Stock = ${product.stock}, Sales = ${product.sales}`);
+          }
+        } catch (err) {
+          console.error(`Failed to update stock/sales for product ${item.productId}:`, err);
+        }
+      }
+    }
+    
     // Log purchase events for analytics
     if (order.items && order.items.length > 0) {
       const AnalyticsEvent = require('../models/AnalyticsEvent');

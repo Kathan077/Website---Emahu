@@ -37,7 +37,8 @@ function TrackOrderContent() {
     try {
       const storedOrders = localStorage.getItem('emahu_orders');
       if (storedOrders) {
-        setAllOrders(JSON.parse(storedOrders));
+        const parsed = JSON.parse(storedOrders);
+        setTimeout(() => setAllOrders(parsed), 0);
       } else {
         const seedOrders = [
           {
@@ -74,7 +75,7 @@ function TrackOrderContent() {
           }
         ];
         localStorage.setItem('emahu_orders', JSON.stringify(seedOrders));
-        setAllOrders(seedOrders);
+        setTimeout(() => setAllOrders(seedOrders), 0);
       }
     } catch (e) {
       console.error(e);
@@ -100,7 +101,7 @@ function TrackOrderContent() {
         const res = await fetch(url);
         const data = await res.json();
         if (data.success && data.orders) {
-          setAllOrders(data.orders);
+          setTimeout(() => setAllOrders(data.orders), 0);
           localStorage.setItem('emahu_orders', JSON.stringify(data.orders));
         }
       } catch (err) {
@@ -242,12 +243,16 @@ function TrackOrderContent() {
           rejectedSubOrders
         };
 
-        setActiveOrder(mergedOrder);
-        setErrorMsg('');
-        setSearchId(queryId);
+        setTimeout(() => {
+          setActiveOrder(mergedOrder);
+          setErrorMsg('');
+          setSearchId(queryId);
+        }, 0);
       } else {
-        setActiveOrder(null);
-        setErrorMsg(`No active transaction found with Escrow Lock ID "${queryId}". Please verify the code and try again.`);
+        setTimeout(() => {
+          setActiveOrder(null);
+          setErrorMsg(`No active transaction found with Escrow Lock ID "${queryId}". Please verify the code and try again.`);
+        }, 0);
       }
     } else if (!queryId) {
       if (allOrders.length > 0) {

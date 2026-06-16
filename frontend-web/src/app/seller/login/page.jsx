@@ -19,9 +19,14 @@ export default function SellerLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // If already logged in, redirect directly to the seller dashboard
+  // If already logged in, redirect directly to the seller dashboard (unless expired)
   useEffect(() => {
-    if (localStorage.getItem('emahu_seller_logged_in') === 'true') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('expired') === 'true') {
+      setError('Your session has expired. Please log in again.');
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    } else if (localStorage.getItem('emahu_seller_logged_in') === 'true') {
       router.replace('/seller/dashboard');
     }
   }, [router]);

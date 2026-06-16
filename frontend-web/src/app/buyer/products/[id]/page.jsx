@@ -71,7 +71,7 @@ export default function ProductDetailPage() {
       const storedWish = localStorage.getItem('emahu_wishlist');
       if (storedWish) {
         const ids = JSON.parse(storedWish);
-        setWishlist(ids.includes(id));
+        setTimeout(() => setWishlist(ids.includes(id)), 0);
       }
     } catch (e) {
       console.error(e);
@@ -125,7 +125,10 @@ export default function ProductDetailPage() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(`emahu_reviews_${id}`);
-      if (stored) setUserReviews(JSON.parse(stored));
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setTimeout(() => setUserReviews(parsed), 0);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -199,6 +202,8 @@ export default function ProductDetailPage() {
             colors: [],
             sizes: [],
             desc: p.description || 'Premium quality product listing verified by EMAHU.',
+            stock: p.stock,
+            status: p.status,
             specs: [
               ['Category', p.category],
               ['Available Inventory', `${p.stock} units`],
@@ -427,25 +432,41 @@ export default function ProductDetailPage() {
           <div className="pd-qty-row">
             <span className="pd-qty-label">Qty</span>
             <div className="pd-qty-ctrl">
-              <button className="pd-qty-btn" onClick={() => setQty(q => Math.max(1, q-1))}>−</button>
-              <span className="pd-qty-val">{qty}</span>
-              <button className="pd-qty-btn" onClick={() => setQty(q => q+1)}>+</button>
+              <button className="pd-qty-btn" onClick={() => setQty(q => Math.max(1, q-1))} disabled={product.stock <= 0}>−</button>
+              <span className="pd-qty-val">{product.stock <= 0 ? 0 : qty}</span>
+              <button className="pd-qty-btn" onClick={() => setQty(q => Math.min(product.stock, q+1))} disabled={product.stock <= 0 || qty >= product.stock}>+</button>
             </div>
-            <span style={{fontSize:'0.78rem',color:'#16a34a',fontWeight:600}}>✓ In Stock</span>
+            {product.stock > 0 ? (
+              <span style={{fontSize:'0.78rem',color:'#16a34a',fontWeight:600}}>✓ In Stock</span>
+            ) : (
+              <span style={{fontSize:'0.78rem',color:'#dc2626',fontWeight:600}}>✕ Out of Stock</span>
+            )}
           </div>
 
           {/* CTAs */}
           <div className="pd-cta-row">
-            <button className={`pd-btn-cart ${added?'pd-btn-cart--added':''}`} onClick={handleAddCart}>
-              {added ? (
+            <button
+              className={`pd-btn-cart ${added?'pd-btn-cart--added':''}`}
+              onClick={handleAddCart}
+              disabled={product.stock <= 0}
+              style={product.stock <= 0 ? { opacity: 0.6, cursor: 'not-allowed', backgroundColor: '#4b5563' } : {}}
+            >
+              {product.stock <= 0 ? (
+                'Out of Stock'
+              ) : added ? (
                 <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Added!</>
               ) : (
                 <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg> Add to Cart</>
               )}
             </button>
-            <button className="pd-btn-buy" onClick={handleBuyNow}>
+            <button
+              className="pd-btn-buy"
+              onClick={handleBuyNow}
+              disabled={product.stock <= 0}
+              style={product.stock <= 0 ? { opacity: 0.6, cursor: 'not-allowed', backgroundColor: '#374151' } : {}}
+            >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-              Buy Now
+              {product.stock <= 0 ? 'Out of Stock' : 'Buy Now'}
             </button>
             <button className={`pd-btn-wishlist ${wishlist?'pd-btn-wishlist--active':''}`} onClick={handleToggleWishlist} aria-label="Wishlist">
               <svg width="18" height="18" viewBox="0 0 24 24" fill={wishlist?'#ef4444':'none'} stroke={wishlist?'#ef4444':'#374151'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

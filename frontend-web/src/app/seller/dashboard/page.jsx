@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import './dashboard.css';
-import { logoutUser, clearAuthSession } from '@/utils/auth';
+import { logoutUser, clearAuthSession, getProfile } from '@/utils/auth';
 
 const INITIAL_PRODUCTS = [
   {
@@ -88,8 +88,62 @@ function parseOrderDate(ord) {
   return new Date();
 }
 
+const getCategoryOptions = (storeCategory) => {
+  const cat = (storeCategory || '').toLowerCase();
+  if (cat === 'electronics') {
+    return [
+      { value: 'Tech', label: 'Tech & Gadgets' },
+      { value: 'Tech', label: 'Consumer Electronics' },
+      { value: 'Tech', label: 'Audio & Acoustics' }
+    ];
+  }
+  if (cat === 'fashion') {
+    return [
+      { value: 'Apparel', label: 'Clothing & Apparel' },
+      { value: 'Shoes', label: 'Footwear & Shoes' },
+      { value: 'Lifestyle', label: 'Bags & Accessories' }
+    ];
+  }
+  if (cat === 'home') {
+    return [
+      { value: 'Kitchen', label: 'Kitchen & Dining' },
+      { value: 'Lifestyle', label: 'Furniture & Decor' }
+    ];
+  }
+  if (cat === 'groceries') {
+    return [
+      { value: 'Lifestyle', label: 'Grocery & Packaged Foods' }
+    ];
+  }
+  if (cat === 'beauty') {
+    return [
+      { value: 'Lifestyle', label: 'Skincare & Cosmetics' }
+    ];
+  }
+  if (cat === 'stationery') {
+    return [
+      { value: 'Lifestyle', label: 'Books & Stationery' }
+    ];
+  }
+  return [
+    { value: 'Tech', label: 'Tech & Gadgets' },
+    { value: 'Apparel', label: 'Fashion & Apparel' },
+    { value: 'Shoes', label: 'Footwear & Shoes' },
+    { value: 'Kitchen', label: 'Kitchenware' },
+    { value: 'Lifestyle', label: 'General Merchandise' }
+  ];
+};
+
 export default function EmahuProDashboard() {
   const router = useRouter();
+  
+  const handleSessionExpired = () => {
+    clearAuthSession('seller');
+    router.replace('/seller/login?expired=true');
+  };
+
+  const [activeTab, setActiveTab] = useState('overview');
+  const [newProductCategory, setNewProductCategory] = useState('Electronics');
   const [sellerUser, setSellerUser] = useState(null);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
@@ -105,18 +159,90 @@ export default function EmahuProDashboard() {
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser);
-        setTimeout(() => {
-          setSellerUser(parsedUser);
-          setIsAuthorized(true);
-        }, 0);
+        setTimeout(() => setSellerUser(parsedUser), 0);
       } catch (e) {
         console.error('Error parsing stored seller user:', e);
+      }
+    }
+
+    const syncProfile = async () => {
+      try {
+        const token = localStorage.getItem('emahu_seller_token');
+        if (!token) {
+          setTimeout(() => setIsAuthorized(true), 0);
+          return;
+        }
+        const res = await getProfile(token);
+        if (res.success && res.user) {
+          setTimeout(() => setSellerUser(res.user), 0);
+          localStorage.setItem('emahu_seller_user', JSON.stringify(res.user));
+        }
+      } catch (err) {
+        console.error('Error syncing profile:', err);
+        if (err.message && (err.message.includes('authorized') || err.message.includes('token') || err.message.includes('expired') || err.message.includes('profile'))) {
+          handleSessionExpired();
+          return;
+        }
+      } finally {
         setTimeout(() => setIsAuthorized(true), 0);
       }
-    } else {
-      setTimeout(() => setIsAuthorized(true), 0);
-    }
+    };
+
+    syncProfile();
   }, [router]);
+
+  // Set default category value based on seller category
+  useEffect(() => {
+    if (sellerUser?.category) {
+      const storeCat = sellerUser.category.toLowerCase();
+      let cat = 'Lifestyle';
+      if (storeCat === 'electronics') {
+        cat = 'Tech';
+      } else if (storeCat === 'fashion') {
+        cat = 'Apparel';
+      } else if (storeCat === 'home') {
+        cat = 'Kitchen';
+      }
+      setTimeout(() => setNewProductCategory(cat), 0);
+    }
+  }, [sellerUser]);
+
+  // Lock user to status tab if not approved
+  useEffect(() => {
+    if (sellerUser && sellerUser.status !== 'approved') {
+      setTimeout(() => setActiveTab('status'), 0);
+    }
+  }, [sellerUser]);
+
+  const [sellerDocuments, setSellerDocuments] = useState([]);
+
+  const fetchSellerDocuments = async () => {
+    try {
+      const token = localStorage.getItem('emahu_seller_token');
+      if (!token) return;
+      const res = await fetch('http://localhost:5000/api/auth/seller/documents', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+      const data = await res.json();
+      if (data.success && data.documents) {
+        setSellerDocuments(data.documents);
+      }
+    } catch (err) {
+      console.error('Error fetching documents:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthorized && sellerUser && sellerUser.status !== 'approved') {
+      setTimeout(() => fetchSellerDocuments(), 0);
+    }
+  }, [isAuthorized, sellerUser]);
 
   const handleSignOut = async () => {
     try {
@@ -132,7 +258,6 @@ export default function EmahuProDashboard() {
   const gstinRef = useRef(null);
 
   // Dashboard Tabs: 'overview', 'products', 'orders', 'analytics', 'settings'
-  const [activeTab, setActiveTab] = useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Settings tab focus helper
@@ -163,8 +288,7 @@ export default function EmahuProDashboard() {
           }
         });
         if (res.status === 401) {
-          clearAuthSession('seller');
-          router.replace('/seller/login');
+          handleSessionExpired();
           return;
         }
         const data = await res.json();
@@ -451,53 +575,69 @@ export default function EmahuProDashboard() {
     return found ? found.raw : null;
   }, [selectedDetailedOrderId, orders]);
 
-  useEffect(() => {
-    const loadNotifs = () => {
-      try {
-        const stored = localStorage.getItem('emahu_notifications');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setNotifications(parsed.filter(n => n.role === 'seller'));
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    loadNotifs();
-    window.addEventListener('storage', loadNotifs);
-    return () => window.removeEventListener('storage', loadNotifs);
-  }, []);
-
-  const handleMarkNotifsRead = () => {
+  const fetchNotifications = async () => {
     try {
-      const stored = localStorage.getItem('emahu_notifications');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const updated = parsed.map(n => n.role === 'seller' ? { ...n, read: true } : n);
-        localStorage.setItem('emahu_notifications', JSON.stringify(updated));
-        window.dispatchEvent(new Event('storage'));
+      const token = localStorage.getItem('emahu_seller_token');
+      if (!token) return;
+      const res = await fetch('http://localhost:5000/api/notifications', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
       }
-    } catch (e) {
-      console.error(e);
+      const data = await res.json();
+      if (data.success && data.notifications) {
+        const formatted = data.notifications.map(n => ({
+          id: n._id,
+          title: n.title,
+          message: n.message,
+          read: n.isRead,
+          date: new Date(n.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          type: n.type
+        }));
+        setNotifications(formatted);
+      }
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
     }
   };
 
-  const pushNotification = (title, message, role = 'buyer') => {
+  useEffect(() => {
+    setTimeout(() => fetchNotifications(), 0);
+    const interval = setInterval(fetchNotifications, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkNotifsRead = async () => {
     try {
-      const existing = JSON.parse(localStorage.getItem('emahu_notifications') || '[]');
-      existing.unshift({
-        id: generateNotificationId(),
-        title,
-        message,
-        role,
-        date: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-        read: false
-      });
-      localStorage.setItem('emahu_notifications', JSON.stringify(existing));
-      window.dispatchEvent(new Event('storage'));
-    } catch (e) {
-      console.error(e);
+      const token = localStorage.getItem('emahu_seller_token');
+      if (!token) return;
+      
+      const unread = notifications.filter(n => !n.read);
+      for (const n of unread) {
+        const res = await fetch(`http://localhost:5000/api/notifications/${n.id}/read`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (res.status === 401) {
+          handleSessionExpired();
+          return;
+        }
+      }
+      fetchNotifications();
+    } catch (err) {
+      console.error('Error marking notifications read:', err);
     }
+  };
+
+  const pushNotification = async (title, message, role = 'seller') => {
+    // We can simulate or directly poll database updates
+    fetchNotifications();
   };
 
   const syncOrderToDatabase = async (orderId, updatedOrdersList) => {
@@ -906,7 +1046,6 @@ export default function EmahuProDashboard() {
   const [newProductName, setNewProductName] = useState('');
   const [newProductBrand, setNewProductBrand] = useState('');
   const [newProductSku, setNewProductSku] = useState('');
-  const [newProductCategory, setNewProductCategory] = useState('Electronics');
   const [newProductPrice, setNewProductPrice] = useState('');
   const [newProductComparePrice, setNewProductComparePrice] = useState('');
   const [newProductStock, setNewProductStock] = useState('');
@@ -916,6 +1055,7 @@ export default function EmahuProDashboard() {
   const [verifyCodes, setVerifyCodes] = useState({});
   const [resubmitProductId, setResubmitProductId] = useState(null);
   const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
+  const [selectedDetailedProduct, setSelectedDetailedProduct] = useState(null);
 
   // Delete Confirmation Modal States
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -943,7 +1083,6 @@ export default function EmahuProDashboard() {
     if (
       !newProductName.trim() ||
       !newProductBrand.trim() ||
-      !newProductSku.trim() ||
       !newProductCategory.trim() ||
       !newProductPrice ||
       !newProductComparePrice ||
@@ -994,7 +1133,6 @@ export default function EmahuProDashboard() {
         body: JSON.stringify({
           name: newProductName.trim(),
           brand: newProductBrand.trim(),
-          sku: newProductSku.trim().toUpperCase(),
           category: newProductCategory,
           price: priceNum,
           comparePrice: comparePriceNum,
@@ -1005,8 +1143,7 @@ export default function EmahuProDashboard() {
       });
 
       if (res.status === 401) {
-        clearAuthSession('seller');
-        router.replace('/seller/login');
+        handleSessionExpired();
         return;
       }
 
@@ -1047,7 +1184,22 @@ export default function EmahuProDashboard() {
     setNewProductName('');
     setNewProductBrand('');
     setNewProductSku('');
-    setNewProductCategory('Electronics');
+    
+    let defaultCat = 'Electronics';
+    if (sellerUser?.category) {
+      const storeCat = sellerUser.category.toLowerCase();
+      if (storeCat === 'electronics') {
+        defaultCat = 'Tech';
+      } else if (storeCat === 'fashion') {
+        defaultCat = 'Apparel';
+      } else if (storeCat === 'home') {
+        defaultCat = 'Kitchen';
+      } else {
+        defaultCat = 'Lifestyle';
+      }
+    }
+    setNewProductCategory(defaultCat);
+    
     setNewProductPrice('');
     setNewProductComparePrice('');
     setNewProductStock('');
@@ -1058,7 +1210,8 @@ export default function EmahuProDashboard() {
   };
 
   const handleVerifyProductCode = async (productId) => {
-    const code = verifyCodes[productId];
+    const product = products.find(p => (p.id || p._id) === productId);
+    const code = verifyCodes[productId] || (product && product.adminCode);
     if (!code || !code.trim()) {
       triggerToast('Verification Error', 'Please enter a verification code first.', 'danger');
       return;
@@ -1076,6 +1229,10 @@ export default function EmahuProDashboard() {
       });
 
       const data = await res.json();
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       if (data.success) {
         setProducts((prev) => prev.map(p => (p.id || p._id) === productId ? data.product : p));
         triggerToast('Listing Approved', `Product listing "${data.product.name}" is now live!`, 'success');
@@ -1084,6 +1241,9 @@ export default function EmahuProDashboard() {
           delete updated[productId];
           return updated;
         });
+        if (data.product && data.product.sku) {
+          window.open(`http://localhost:3000/buyer/products/${data.product.sku}`, '_blank');
+        }
       } else {
         triggerToast('Verification Failed', data.error || 'Invalid verification code.', 'danger');
       }
@@ -1131,8 +1291,7 @@ export default function EmahuProDashboard() {
       });
 
       if (res.status === 401) {
-        clearAuthSession('seller');
-        router.replace('/seller/login');
+        handleSessionExpired();
         return;
       }
 
@@ -1159,8 +1318,13 @@ export default function EmahuProDashboard() {
   // Process sorting & filtering products
   const filteredProducts = products
     .filter((product) => {
+      // In the main products tab, show only fully approved listings
+      if (activeTab === 'products' && product.approvalStatus !== 'approved') {
+        return false;
+      }
+
       const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            product.sku.toLowerCase().includes(searchQuery.toLowerCase());
+                            (product.sku || '').toLowerCase().includes(searchQuery.toLowerCase());
       
       const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
       const matchesStatus = statusFilter === 'all' || product.status === statusFilter;
@@ -1181,6 +1345,16 @@ export default function EmahuProDashboard() {
   const totalSalesCount = orders.length;
   const lowStockCount = products.filter(p => p.status === 'low-stock').length;
   const outOfStockCount = products.filter(p => p.status === 'out-of-stock').length;
+
+  // Highest selling product and selling range calculations
+  const sortedProductsRange = useMemo(() => {
+    return [...products].sort((a, b) => (b.sales || 0) - (a.sales || 0));
+  }, [products]);
+
+  const highestSellingProduct = useMemo(() => {
+    if (sortedProductsRange.length === 0) return null;
+    return sortedProductsRange[0];
+  }, [sortedProductsRange]);
 
   // Dynamic Weekly Chart Calculations
   const chartData = useMemo(() => {
@@ -1372,9 +1546,23 @@ export default function EmahuProDashboard() {
         </Link>
 
         <ul className="sidebar-menu">
+          {sellerUser?.status !== 'approved' && (
+            <li>
+              <button 
+                className={`sidebar-item-btn ${activeTab === 'status' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('status'); setIsSidebarOpen(false); }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: '18px', height: '18px' }}>
+                  <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                <span>Verification Status</span>
+              </button>
+            </li>
+          )}
           <li>
             <button 
               className={`sidebar-item-btn ${activeTab === 'overview' ? 'active' : ''}`}
+              disabled={sellerUser?.status !== 'approved'}
               onClick={() => { setActiveTab('overview'); setIsSidebarOpen(false); }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1384,22 +1572,43 @@ export default function EmahuProDashboard() {
                 <rect x="3" y="16" width="7" height="5" rx="1" />
               </svg>
               <span>Overview</span>
+              {sellerUser?.status !== 'approved' && <span style={{ marginLeft: 'auto' }}>🔒</span>}
             </button>
           </li>
           <li>
             <button 
               className={`sidebar-item-btn ${activeTab === 'products' ? 'active' : ''}`}
+              disabled={sellerUser?.status !== 'approved'}
               onClick={() => { setActiveTab('products'); setIsSidebarOpen(false); }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
-              <span>Products</span>
+              <span>Approved Products</span>
+              {sellerUser?.status !== 'approved' && <span style={{ marginLeft: 'auto' }}>🔒</span>}
+            </button>
+          </li>
+          <li>
+            <button 
+              className={`sidebar-item-btn ${activeTab === 'requests' ? 'active' : ''}`}
+              disabled={sellerUser?.status !== 'approved'}
+              onClick={() => { setActiveTab('requests'); setIsSidebarOpen(false); }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              <span>Verification Requests</span>
+              {sellerUser?.status !== 'approved' && <span style={{ marginLeft: 'auto' }}>🔒</span>}
             </button>
           </li>
           <li>
             <button 
               className={`sidebar-item-btn ${activeTab === 'orders' ? 'active' : ''}`}
+              disabled={sellerUser?.status !== 'approved'}
               onClick={() => { setActiveTab('orders'); setIsSidebarOpen(false); }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1411,22 +1620,26 @@ export default function EmahuProDashboard() {
                   {pendingOrdersCount}
                 </span>
               )}
+              {sellerUser?.status !== 'approved' && <span style={{ marginLeft: 'auto' }}>🔒</span>}
             </button>
           </li>
           <li>
             <button 
               className={`sidebar-item-btn ${activeTab === 'analytics' ? 'active' : ''}`}
+              disabled={sellerUser?.status !== 'approved'}
               onClick={() => { setActiveTab('analytics'); setIsSidebarOpen(false); }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 20V10M12 20V4M6 20v-6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               <span>Analytics</span>
+              {sellerUser?.status !== 'approved' && <span style={{ marginLeft: 'auto' }}>🔒</span>}
             </button>
           </li>
           <li>
             <button 
               className={`sidebar-item-btn ${activeTab === 'settings' ? 'active' : ''}`}
+              disabled={sellerUser?.status !== 'approved'}
               onClick={() => { setActiveTab('settings'); setIsSidebarOpen(false); }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -1434,6 +1647,7 @@ export default function EmahuProDashboard() {
                 <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
               <span>Settings</span>
+              {sellerUser?.status !== 'approved' && <span style={{ marginLeft: 'auto' }}>🔒</span>}
             </button>
           </li>
         </ul>
@@ -1559,18 +1773,260 @@ export default function EmahuProDashboard() {
 
             <div className="header-divider"></div>
 
-            <button className="company-portal-btn" onClick={() => setIsAddModalOpen(true)}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              <span>Add New Product</span>
-            </button>
+            {sellerUser?.status === 'approved' && (
+              <div style={{ height: '36px' }} />
+            )}
           </div>
         </header>
 
         {/* --- DYNAMIC VIEWPORT CONTROLLER --- */}
         <main className="view-container">
+          {sellerUser?.status === 'pending' && (
+            <div style={{
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.4)',
+              borderRadius: '8px',
+              padding: '16px 20px',
+              marginBottom: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <span style={{ fontSize: '1.5rem' }}>⚠️</span>
+              <div>
+                <h4 style={{ margin: 0, color: '#fff', fontSize: '0.95rem', fontWeight: 'bold' }}>Store Account Pending Verification</h4>
+                <p style={{ margin: '4px 0 0 0', color: '#fbbf24', fontSize: '0.9rem', lineHeight: '1.4', fontWeight: '600' }}>
+                  Aapki business registration verification pending hai. Compliance experts details verify kar rahe hain. Tab tak aap product verification requests submit kar sakte hain.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {sellerUser?.status === 'rejected' && (
+            <div style={{
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              borderRadius: '8px',
+              padding: '16px 20px',
+              marginBottom: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <span style={{ fontSize: '1.5rem' }}>❌</span>
+              <div>
+                <h4 style={{ margin: 0, color: '#fff', fontSize: '0.95rem', fontWeight: 'bold' }}>Store Registration Rejected</h4>
+                <p style={{ margin: '4px 0 0 0', color: '#fca5a5', fontSize: '0.9rem', lineHeight: '1.4', fontWeight: '600' }}>
+                  Aapki seller profile evaluation standard terms complete nahi kar payi. Please parameters resolve karein or support se clarify karein.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: VERIFICATION STATUS (FOR UNAPPROVED SELLERS) */}
+          {activeTab === 'status' && (
+            <div style={{ maxWidth: '800px', margin: '0 auto', padding: '24px 0' }}>
+              <div style={{ marginBottom: '32px', textAlign: 'center' }}>
+                <h2 style={{ fontSize: '2rem', fontWeight: '800', color: '#fff' }}>
+                  Verification Desk
+                </h2>
+                <p style={{ color: '#a1a1aa', marginTop: '8px' }}>Monitor onboarding progress and resubmit compliance credentials.</p>
+              </div>
+
+              {sellerUser?.status === 'pending' && (
+                <div style={{
+                  background: 'rgba(245, 158, 11, 0.05)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: '16px',
+                  padding: '32px',
+                  textAlign: 'center',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  backdropFilter: 'blur(10px)',
+                  marginBottom: '32px'
+                }}>
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'rgba(245, 158, 11, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 20px',
+                    animation: 'pulse 2s infinite'
+                  }}>
+                    <span style={{ fontSize: '2rem' }}>⏳</span>
+                  </div>
+                  <h3 style={{ fontSize: '1.4rem', color: '#fff', fontWeight: '700', marginBottom: '12px' }}>
+                    Waiting for Admin Approval
+                  </h3>
+                  <p style={{ color: '#fbbf24', fontSize: '1rem', lineHeight: '1.6', margin: '0 auto', maxWidth: '600px', fontWeight: '600' }}>
+                    Aapki business registration verification pending hai. Compliance experts details verify kar rahe hain. Tab tak aap product verification requests submit kar sakte hain.
+                  </p>
+                </div>
+              )}
+
+              {sellerUser?.status === 'rejected' && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.05)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '16px',
+                  padding: '32px',
+                  textAlign: 'center',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  backdropFilter: 'blur(10px)',
+                  marginBottom: '32px'
+                }}>
+                  <div style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    margin: '0 auto 20px'
+                  }}>
+                    <span style={{ fontSize: '2rem' }}>❌</span>
+                  </div>
+                  <h3 style={{ fontSize: '1.4rem', color: '#fff', fontWeight: '700', marginBottom: '12px' }}>
+                    Store Registration Rejected
+                  </h3>
+                  <p style={{ color: '#fca5a5', fontSize: '0.95rem', lineHeight: '1.6', margin: '0 auto', maxWidth: '600px', fontWeight: '600' }}>
+                    Aapki seller profile evaluation standard terms complete nahi kar payi. Please parameters resolve karein or support se clarify karein.
+                  </p>
+                  {sellerUser?.verificationFeedback && (
+                    <div style={{
+                      marginTop: '20px',
+                      background: 'rgba(0,0,0,0.2)',
+                      border: '1px solid rgba(239,68,68,0.2)',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      color: '#ef4444',
+                      fontSize: '0.9rem',
+                      textAlign: 'left'
+                    }}>
+                      <strong>Admin Feedback:</strong> {sellerUser.verificationFeedback}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {sellerUser?.status === 'more_info_requested' && (
+                <div style={{
+                  background: 'rgba(59, 130, 246, 0.05)',
+                  border: '1px solid rgba(59, 130, 246, 0.3)',
+                  borderRadius: '16px',
+                  padding: '32px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                  backdropFilter: 'blur(10px)',
+                  marginBottom: '32px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '50%',
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      <span style={{ fontSize: '1.5rem' }}>ℹ️</span>
+                    </div>
+                    <div>
+                      <h3 style={{ fontSize: '1.3rem', color: '#fff', fontWeight: '700', margin: 0 }}>
+                        Verification Information Required
+                      </h3>
+                      <p style={{ color: '#93c5fd', fontSize: '0.85rem', margin: '4px 0 0 0' }}>
+                        The compliance team has requested more details regarding your registration.
+                      </p>
+                    </div>
+                  </div>
+
+                  {sellerUser?.verificationFeedback && (
+                    <div style={{
+                      background: 'rgba(0,0,0,0.3)',
+                      border: '1px solid rgba(59, 130, 246, 0.2)',
+                      padding: '16px',
+                      borderRadius: '8px',
+                      color: '#cbd5e1',
+                      fontSize: '0.9rem',
+                      marginBottom: '24px'
+                    }}>
+                      <strong style={{ color: '#60a5fa', display: 'block', marginBottom: '4px' }}>Auditor Feedback:</strong>
+                      {sellerUser.verificationFeedback}
+                    </div>
+                  )}
+
+                  {/* Document resubmission form */}
+                  <SellerDocumentResubmissionForm 
+                    documents={sellerDocuments} 
+                    onSuccess={async () => {
+                      triggerToast('Details Resubmitted', 'Your store verification request is now pending review.', 'success');
+                      // Re-sync user status by calling getProfile
+                      const token = localStorage.getItem('emahu_seller_token');
+                      if (token) {
+                        const res = await getProfile(token);
+                        if (res.success && res.user) {
+                          setSellerUser(res.user);
+                          localStorage.setItem('emahu_seller_user', JSON.stringify(res.user));
+                        }
+                      }
+                      fetchSellerDocuments();
+                    }} 
+                  />
+                </div>
+              )}
+
+              {/* Documents status tracker list */}
+              <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '16px', padding: '24px' }}>
+                <h3 style={{ color: '#fff', fontSize: '1.1rem', fontWeight: '700', marginBottom: '16px' }}>Uploaded Documents Status</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {['business_registration', 'id_proof'].map(type => {
+                    const doc = sellerDocuments.find(d => d.documentType === type);
+                    const docName = type === 'business_registration' ? 'Business Registration Document' : 'ID Proof (PAN/Aadhaar)';
+                    return (
+                      <div key={type} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '16px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid #27272a',
+                        borderRadius: '12px'
+                      }}>
+                        <div>
+                          <strong style={{ color: '#fff', fontSize: '0.9rem', display: 'block' }}>{docName}</strong>
+                          {doc ? (
+                            <a href={doc.fileUrl} target="_blank" rel="noreferrer" style={{ color: '#6366f1', fontSize: '0.8rem', textDecoration: 'underline', display: 'inline-block', marginTop: '4px' }}>
+                              View Submitted Document
+                            </a>
+                          ) : (
+                            <span style={{ color: '#71717a', fontSize: '0.8rem', display: 'block', marginTop: '4px' }}>Not uploaded</span>
+                          )}
+                        </div>
+                        <div>
+                          <span style={{
+                            padding: '4px 10px',
+                            borderRadius: '20px',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            backgroundColor: doc?.status === 'approved' ? 'rgba(16, 185, 129, 0.1)' : doc?.status === 'rejected' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                            color: doc?.status === 'approved' ? '#10b981' : doc?.status === 'rejected' ? '#ef4444' : '#f59e0b',
+                            border: `1px solid ${doc?.status === 'approved' ? 'rgba(16, 185, 129, 0.2)' : doc?.status === 'rejected' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`
+                          }}>
+                            {doc ? doc.status.toUpperCase() : 'PENDING'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
           
           {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
@@ -1759,6 +2215,89 @@ export default function EmahuProDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Product Performance Matrix (Selling Range & High Sellers) */}
+              <div className="glass-card" style={{ marginTop: '24px' }}>
+                <div className="glass-card-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '16px' }}>
+                  <span className="glass-card-title">📈 Product Performance & Selling Range</span>
+                  <span className="sidebar-title-tag" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--color-primary)' }}>Sales Matrix</span>
+                </div>
+
+                {highestSellingProduct && highestSellingProduct.sales > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', alignItems: 'stretch' }}>
+                    {/* Highest Selling Card */}
+                    <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.15)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ color: '#10b981', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                          🏆 Highest Selling Product
+                        </div>
+                        <h4 style={{ margin: '0 0 4px 0', fontSize: '1.15rem', color: '#fff', fontWeight: 700 }}>
+                          {highestSellingProduct.name}
+                        </h4>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                          Category: {highestSellingProduct.category} · Brand: {highestSellingProduct.brand}
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '16px' }}>
+                        <div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Units Sold</div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#10b981' }}>{highestSellingProduct.sales}</div>
+                        </div>
+                        <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Remaining Stock</div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: highestSellingProduct.stock === 0 ? '#ef4444' : highestSellingProduct.stock <= 10 ? '#f59e0b' : '#3b82f6' }}>
+                            {highestSellingProduct.stock} {highestSellingProduct.stock === 0 ? '(Out of Stock)' : 'units'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Selling Range List */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff' }}>Products Sales Distribution (Selling Range):</span>
+                      <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'rgba(0,0,0,0.2)' }}>
+                        <table className="portal-table" style={{ width: '100%', fontSize: '0.8rem' }}>
+                          <thead>
+                            <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
+                              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Rank</th>
+                              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Product</th>
+                              <th style={{ textAlign: 'center', padding: '8px 12px' }}>Price</th>
+                              <th style={{ textAlign: 'center', padding: '8px 12px' }}>Stock</th>
+                              <th style={{ textAlign: 'center', padding: '8px 12px' }}>Units Sold</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sortedProductsRange.map((p, idx) => (
+                              <tr key={p.id || p._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '8px 12px', fontWeight: 'bold', color: idx === 0 ? '#10b981' : '#fff' }}>
+                                  #{idx + 1}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: '#fff' }}>
+                                  {p.name}
+                                </td>
+                                <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                  ₹{p.price.toLocaleString('en-IN')}
+                                </td>
+                                <td style={{ padding: '8px 12px', textAlign: 'center', color: p.stock === 0 ? '#ef4444' : p.stock <= 10 ? '#f59e0b' : '#fff' }}>
+                                  {p.stock}
+                                </td>
+                                <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 'bold', color: '#10b981' }}>
+                                  {p.sales || 0}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                    No product sales records recorded yet. Start selling to see analytics and product selling range!
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1824,18 +2363,8 @@ export default function EmahuProDashboard() {
                     <option value="name">Sort by Name</option>
                     <option value="price-low">Price: Low to High</option>
                     <option value="price-high">Price: High to Low</option>
-                    <option value="stock">Stock Quantity</option>
-                    <option value="sales">Sales volume</option>
                   </select>
                 </div>
-
-                <button className="add-product-btn" onClick={() => setIsAddModalOpen(true)}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  <span>Add Product</span>
-                </button>
               </div>
 
               {/* Data Table */}
@@ -1871,7 +2400,11 @@ export default function EmahuProDashboard() {
                                 </div>
                                 <div className="product-meta-details">
                                   <span className="product-name">{product.name}</span>
-                                  <span className="product-sku">{product.sku}</span>
+                                  {isApproved ? (
+                                    <span className="product-sku">{product.sku}</span>
+                                  ) : (
+                                    <span className="product-sku" style={{ fontStyle: 'italic', color: '#94a3b8' }}>SKU Pending</span>
+                                  )}
                                 </div>
                               </div>
                             </td>
@@ -1887,17 +2420,19 @@ export default function EmahuProDashboard() {
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                                 <span className={`status-badge ${
                                   isApproved ? 'in-stock' :
-                                  isPending ? 'low-stock' : 'out-of-stock'
+                                  (isPending && product.adminCode) ? 'low-stock' :
+                                  isPending ? 'draft' : 'out-of-stock'
                                 }`}>
-                                  {isApproved ? 'Approved & Live' :
-                                   isPending ? 'Pending Approval' : 'Rejected'}
+                      {isApproved ? 'Approved & Live' :
+                                   (isPending && product.adminCode) ? 'Pending Activation' :
+                                   isPending ? 'Under Admin Review' : 'Rejected'}
                                 </span>
                                 {isRejected && product.rejectionReason && (
                                   <span style={{ fontSize: '0.75rem', color: '#ef4444', maxWidth: '200px', wordBreak: 'break-word', display: 'inline-block' }}>
                                     Reason: {product.rejectionReason}
                                   </span>
                                 )}
-                                {isPending && (
+                                {isPending && product.adminCode && (
                                   <div style={{ display: 'flex', gap: '4px', marginTop: '6px', alignItems: 'center' }}>
                                     <input
                                       type="text"
@@ -1908,16 +2443,16 @@ export default function EmahuProDashboard() {
                                         fontSize: '0.75rem',
                                         padding: '2px 6px',
                                         width: '90px',
-                                        background: 'rgba(255,255,255,0.05)',
-                                        borderColor: 'rgba(255,255,255,0.1)',
-                                        color: '#fff',
-                                        borderRadius: '4px'
+                                        background: 'rgba(255,255,255,0.08)',
+                                        borderColor: 'var(--color-success)',
+                                        color: '#10b981',
+                                        borderRadius: '4px',
+                                        fontWeight: 'bold',
+                                        textAlign: 'center',
+                                        cursor: 'not-allowed'
                                       }}
-                                      value={verifyCodes[product.id || product._id] || ''}
-                                      onChange={(e) => setVerifyCodes(prev => ({
-                                        ...prev,
-                                        [product.id || product._id]: e.target.value
-                                      }))}
+                                      value={product.adminCode || ''}
+                                      readOnly={true}
                                     />
                                     <button
                                       className="company-portal-btn"
@@ -1934,6 +2469,11 @@ export default function EmahuProDashboard() {
                                       Verify
                                     </button>
                                   </div>
+                                )}
+                                {isPending && !product.adminCode && (
+                                  <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                                    Waiting for admin review
+                                  </span>
                                 )}
                               </div>
                             </td>
@@ -1961,12 +2501,314 @@ export default function EmahuProDashboard() {
                   </table>
                 ) : (
                   <div className="empty-state">
-                    <div className="empty-icon">ðŸ“‚</div>
+                    <div className="empty-icon">📂</div>
                     <h3>No products found</h3>
                     <p>Try refining your search queries or adding new list items to the directory.</p>
-                    <button className="add-product-btn" onClick={() => setIsAddModalOpen(true)}>Add Product</button>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: VERIFICATION REQUESTS */}
+          {activeTab === 'requests' && (
+            <div>
+              <div className="view-header">
+                <div className="view-title-group">
+                  <h2>Verification & Listing Requests</h2>
+                  <p>Submit product listings for administration audit and activate approved listings with security codes.</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '24px', alignItems: 'start', marginTop: '24px' }}>
+                
+                {/* LEFT COLUMN: CREATE REQUEST FORM */}
+                <div className="card" style={{ padding: '24px', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', borderRadius: '12px' }}>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-primary)' }}>
+                    <span>📝</span> Submit New Request
+                  </h3>
+                  
+                  {formError && (
+                    <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--color-danger)', padding: '10px 16px', borderRadius: '6px', fontSize: '0.8rem', marginBottom: '16px', border: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                      ⚠️ {formError}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleAddProduct}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Product Title *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          style={{ height: '36px', fontSize: '0.85rem' }}
+                          placeholder="e.g. Aura Wireless Earbuds" 
+                          value={newProductName}
+                          onChange={(e) => setNewProductName(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Brand Name *</label>
+                        <input 
+                          type="text" 
+                          className="form-input" 
+                          style={{ height: '36px', fontSize: '0.85rem' }}
+                          placeholder="e.g. Aura" 
+                          value={newProductBrand}
+                          onChange={(e) => setNewProductBrand(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Category *</label>
+                        <select 
+                          className="select-filter" 
+                          style={{ height: '36px', width: '100%', fontSize: '0.85rem' }}
+                          value={newProductCategory}
+                          onChange={(e) => setNewProductCategory(e.target.value)}
+                          required
+                        >
+                          {getCategoryOptions(sellerUser?.category).map(opt => (
+                            <option key={opt.value + opt.label} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Price (INR) *</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            style={{ height: '36px', fontSize: '0.85rem' }}
+                            placeholder="4999" 
+                            value={newProductPrice}
+                            onChange={(e) => setNewProductPrice(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Compare Price *</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            style={{ height: '36px', fontSize: '0.85rem' }}
+                            placeholder="7999" 
+                            value={newProductComparePrice}
+                            onChange={(e) => setNewProductComparePrice(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Inventory *</label>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            style={{ height: '36px', fontSize: '0.85rem' }}
+                            placeholder="20" 
+                            value={newProductStock}
+                            onChange={(e) => setNewProductStock(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Image URL *</label>
+                          <input 
+                            type="url" 
+                            className="form-input" 
+                            style={{ height: '36px', fontSize: '0.85rem' }}
+                            placeholder="https://..." 
+                            value={newProductImage}
+                            onChange={(e) => setNewProductImage(e.target.value)}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="form-label" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Description *</label>
+                        <textarea 
+                          className="form-input" 
+                          style={{ height: '60px', fontSize: '0.85rem', padding: '8px', resize: 'none' }}
+                          placeholder="Short description..." 
+                          value={newProductDescription}
+                          onChange={(e) => setNewProductDescription(e.target.value)}
+                          required
+                        />
+                      </div>
+
+                      <button 
+                        type="submit" 
+                        className="company-portal-btn"
+                        style={{ height: '40px', width: '100%', marginTop: '8px', background: 'var(--color-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        disabled={isSubmittingProduct}
+                      >
+                        {isSubmittingProduct ? 'Submitting...' : 'Submit Request'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* RIGHT COLUMN: REQUESTS HISTORY & STATUS */}
+                <div className="card" style={{ padding: '24px', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-sm)', borderRadius: '12px' }}>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '16px', color: 'var(--text-primary)' }}>
+                    📋 Verification History
+                  </h3>
+                  
+                  <div style={{ maxHeight: '550px', overflowY: 'auto' }}>
+                    <table className="portal-table" style={{ width: '100%', fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', padding: '10px' }}>Product</th>
+                          <th style={{ textAlign: 'left', padding: '10px' }}>Category</th>
+                          <th style={{ textAlign: 'left', padding: '10px' }}>Status</th>
+                          <th style={{ textAlign: 'left', padding: '10px' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {products.map((product) => {
+                          const isApproved = product.approvalStatus === 'approved';
+                          const isPending = product.approvalStatus === 'pending';
+                          const isRejected = product.approvalStatus === 'rejected';
+
+                          return (
+                            <tr key={product.id || product._id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '12px 10px' }}>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  <div style={{ fontSize: '1.5rem' }}>{(!product.image || !product.image.startsWith('http')) ? (product.image || '📦') : '📦'}</div>
+                                  <div>
+                                    <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{product.name}</div>
+                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>₹{product.price.toLocaleString('en-IN')}</div>
+                                  </div>
+                                </div>
+                              </td>
+                              <td style={{ padding: '12px 10px' }}>
+                                <div style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{product.category}</div>
+                              </td>
+                              <td style={{ padding: '12px 10px' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                  <span className={`status-badge ${
+                                    isApproved ? 'in-stock' :
+                                    (isPending && product.adminCode) ? 'low-stock' :
+                                    isPending ? 'draft' : 'out-of-stock'
+                                  }`} style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                                    {isApproved ? 'Approved & Live' :
+                                     (isPending && product.adminCode) ? 'Pending Activation' :
+                                     isPending ? 'Under Review' : 'Rejected'}
+                                  </span>
+                                  
+                                  {isPending && product.adminCode && (
+                                    <span style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: 'bold' }}>
+                                      Code Generated!
+                                    </span>
+                                  )}
+
+                                  {isRejected && (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                      {product.rejectionReason && (
+                                        <span style={{ fontSize: '0.72rem', color: '#ef4444', maxWidth: '140px', wordBreak: 'break-all' }}>
+                                          Reason: {product.rejectionReason}
+                                        </span>
+                                      )}
+                                      <span style={{ fontSize: '0.72rem', color: '#f59e0b', fontWeight: 'bold' }}>
+                                        Rejections: {product.approvalAttempts || 0} / 3
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td style={{ padding: '12px 10px' }}>
+                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                  <button
+                                    className="company-portal-btn"
+                                    style={{
+                                      height: '24px',
+                                      fontSize: '0.7rem',
+                                      padding: '0 8px',
+                                      background: 'var(--bg-secondary)',
+                                      border: '1px solid var(--border-color)',
+                                      color: 'var(--text-primary)',
+                                      cursor: 'pointer'
+                                    }}
+                                    onClick={() => setSelectedDetailedProduct(product)}
+                                  >
+                                    Details
+                                  </button>
+
+                                  {isPending && product.adminCode && (
+                                    <div style={{ display: 'flex', gap: '4px', flexDirection: 'column' }}>
+                                      <input
+                                        type="text"
+                                        placeholder="Admin Code"
+                                        className="form-input"
+                                        style={{
+                                          height: '24px',
+                                          fontSize: '0.7rem',
+                                          padding: '2px 4px',
+                                          width: '85px',
+                                          borderRadius: '4px',
+                                          background: 'rgba(255,255,255,0.08)',
+                                          borderColor: 'var(--color-success)',
+                                          color: '#10b981',
+                                          fontWeight: 'bold',
+                                          textAlign: 'center',
+                                          cursor: 'not-allowed'
+                                        }}
+                                        value={product.adminCode || ''}
+                                        readOnly={true}
+                                      />
+                                      <button
+                                        className="company-portal-btn"
+                                        style={{
+                                          height: '24px',
+                                          fontSize: '0.7rem',
+                                          padding: '0 4px',
+                                          background: 'var(--color-success)',
+                                          borderColor: 'var(--color-success)',
+                                          width: '85px'
+                                        }}
+                                        onClick={() => handleVerifyProductCode(product.id || product._id)}
+                                      >
+                                        Verify Code
+                                      </button>
+                                    </div>
+                                  )}
+                                  {isPending && !product.adminCode && (
+                                    <span style={{ fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic' }}>Pending Admin</span>
+                                  )}
+                                  {isApproved && (
+                                    <span style={{ fontSize: '0.78rem', color: 'var(--color-success)', fontWeight: '600' }}>
+                                      ✓ Live
+                                    </span>
+                                  )}
+                                  {isRejected && (
+                                    <button className="action-btn" title="Fix and Resubmit" onClick={() => handleOpenResubmitModal(product)}>
+                                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {products.length === 0 && (
+                          <tr>
+                            <td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>No requests submitted yet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
               </div>
             </div>
           )}
@@ -2316,6 +3158,89 @@ export default function EmahuProDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* Product Performance Matrix (Selling Range & High Sellers) */}
+              <div className="glass-card" style={{ marginTop: '24px' }}>
+                <div className="glass-card-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '16px' }}>
+                  <span className="glass-card-title">📈 Product Performance & Selling Range</span>
+                  <span className="sidebar-title-tag" style={{ background: 'rgba(99, 102, 241, 0.15)', color: 'var(--color-primary)' }}>Sales Matrix</span>
+                </div>
+
+                {highestSellingProduct && highestSellingProduct.sales > 0 ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '24px', alignItems: 'stretch' }}>
+                    {/* Highest Selling Card */}
+                    <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.15)', borderRadius: '12px', padding: '20px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ color: '#10b981', fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                          🏆 Highest Selling Product
+                        </div>
+                        <h4 style={{ margin: '0 0 4px 0', fontSize: '1.15rem', color: '#fff', fontWeight: 700 }}>
+                          {highestSellingProduct.name}
+                        </h4>
+                        <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                          Category: {highestSellingProduct.category} · Brand: {highestSellingProduct.brand}
+                        </div>
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '16px' }}>
+                        <div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Units Sold</div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#10b981' }}>{highestSellingProduct.sales}</div>
+                        </div>
+                        <div style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Remaining Stock</div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: highestSellingProduct.stock === 0 ? '#ef4444' : highestSellingProduct.stock <= 10 ? '#f59e0b' : '#3b82f6' }}>
+                            {highestSellingProduct.stock} {highestSellingProduct.stock === 0 ? '(Out of Stock)' : 'units'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Selling Range List */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600, color: '#fff' }}>Products Sales Distribution (Selling Range):</span>
+                      <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'rgba(0,0,0,0.2)' }}>
+                        <table className="portal-table" style={{ width: '100%', fontSize: '0.8rem' }}>
+                          <thead>
+                            <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
+                              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Rank</th>
+                              <th style={{ textAlign: 'left', padding: '8px 12px' }}>Product</th>
+                              <th style={{ textAlign: 'center', padding: '8px 12px' }}>Price</th>
+                              <th style={{ textAlign: 'center', padding: '8px 12px' }}>Stock</th>
+                              <th style={{ textAlign: 'center', padding: '8px 12px' }}>Units Sold</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sortedProductsRange.map((p, idx) => (
+                              <tr key={p.id || p._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                                <td style={{ padding: '8px 12px', fontWeight: 'bold', color: idx === 0 ? '#10b981' : '#fff' }}>
+                                  #{idx + 1}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: '#fff' }}>
+                                  {p.name}
+                                </td>
+                                <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                                  ₹{p.price.toLocaleString('en-IN')}
+                                </td>
+                                <td style={{ padding: '8px 12px', textAlign: 'center', color: p.stock === 0 ? '#ef4444' : p.stock <= 10 ? '#f59e0b' : '#fff' }}>
+                                  {p.stock}
+                                </td>
+                                <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 'bold', color: '#10b981' }}>
+                                  {p.sales || 0}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+                    No product sales records recorded yet. Start selling to see analytics and product selling range!
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -2397,6 +3322,99 @@ export default function EmahuProDashboard() {
         </main>
       </div>
 
+      {/* --- PRODUCT DETAILS MODAL --- */}
+      {selectedDetailedProduct && (
+        <div className="modal-overlay" style={{ zIndex: 99999 }}>
+          <div className="modal-card" style={{ maxWidth: '600px', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
+            <div className="modal-header">
+              <div className="modal-title-group">
+                <h3 style={{ color: 'var(--text-primary)' }}>Product Request Details</h3>
+                <p style={{ color: 'var(--text-muted)' }}>Detailed view of the listing submitted for admin approval.</p>
+              </div>
+              <button className="modal-close-btn" onClick={() => setSelectedDetailedProduct(null)}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px', color: 'var(--text-primary)', overflowY: 'auto', maxHeight: '70vh' }}>
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <div style={{ width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.1)' }}>
+                  {(!selectedDetailedProduct.image || !selectedDetailedProduct.image.startsWith('http')) ? (
+                    selectedDetailedProduct.image || '📦'
+                  ) : (
+                    <img src={selectedDetailedProduct.image} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  )}
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '1.2rem', color: 'var(--text-primary)' }}>{selectedDetailedProduct.name}</h4>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Brand: {selectedDetailedProduct.brand}</p>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.85rem' }}>
+                <div>
+                  <strong style={{ color: 'var(--text-secondary)' }}>Category:</strong>
+                  <div style={{ marginTop: '2px' }}>{selectedDetailedProduct.category}</div>
+                </div>
+                <div>
+                  <strong style={{ color: 'var(--text-secondary)' }}>Price:</strong>
+                  <div style={{ marginTop: '2px' }}>₹{selectedDetailedProduct.price?.toLocaleString('en-IN')}</div>
+                </div>
+                <div>
+                  <strong style={{ color: 'var(--text-secondary)' }}>Compare Price:</strong>
+                  <div style={{ marginTop: '2px' }}>₹{selectedDetailedProduct.comparePrice?.toLocaleString('en-IN')}</div>
+                </div>
+                <div>
+                  <strong style={{ color: 'var(--text-secondary)' }}>Stock:</strong>
+                  <div style={{ marginTop: '2px' }}>{selectedDetailedProduct.stock} units</div>
+                </div>
+              </div>
+
+              <div>
+                <strong style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Description:</strong>
+                <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', lineHeight: '1.5', color: 'var(--text-primary)' }}>{selectedDetailedProduct.description}</p>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: '4px' }}>
+                <strong style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Request Status:</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
+                  <span className={`status-badge ${
+                    selectedDetailedProduct.approvalStatus === 'approved' ? 'in-stock' :
+                    (selectedDetailedProduct.approvalStatus === 'pending' && selectedDetailedProduct.adminCode) ? 'low-stock' :
+                    selectedDetailedProduct.approvalStatus === 'pending' ? 'draft' : 'out-of-stock'
+                  }`}>
+                    {selectedDetailedProduct.approvalStatus === 'approved' ? 'Approved & Live' :
+                     (selectedDetailedProduct.approvalStatus === 'pending' && selectedDetailedProduct.adminCode) ? 'Pending Activation' :
+                     selectedDetailedProduct.approvalStatus === 'pending' ? 'Under Admin Review' : 'Rejected'}
+                  </span>
+                  {selectedDetailedProduct.approvalAttempts > 0 && (
+                    <span style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 'bold' }}>
+                      (Attempts: {selectedDetailedProduct.approvalAttempts}/3)
+                    </span>
+                  )}
+                </div>
+                {selectedDetailedProduct.rejectionReason && (
+                  <div style={{ marginTop: '10px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '10px 12px', borderRadius: '6px', color: '#ef4444', fontSize: '0.8rem' }}>
+                    <strong>Rejection Reason:</strong> {selectedDetailedProduct.rejectionReason}
+                  </div>
+                )}
+                {selectedDetailedProduct.adminCode && selectedDetailedProduct.approvalStatus === 'pending' && (
+                  <div style={{ marginTop: '10px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', padding: '10px 12px', borderRadius: '6px', color: '#10b981', fontSize: '0.8rem' }}>
+                    <strong>Admin Code for Activation:</strong> {selectedDetailedProduct.adminCode}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="modal-btn cancel" onClick={() => setSelectedDetailedProduct(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* --- ADD PRODUCT MODAL --- */}
       {isAddModalOpen && (
         <div className="modal-overlay">
@@ -2475,44 +3493,22 @@ export default function EmahuProDashboard() {
                   </div>
                 </div>
 
-                <div className="form-grid-2">
-                  <div className="form-group">
-                    <label className="form-label">SKU Identifier *</label>
-                    <input 
-                      type="text" 
-                      className="form-input" 
-                      placeholder="e.g. EM-TBL-409" 
-                      value={newProductSku}
-                      onChange={(e) => setNewProductSku(e.target.value)}
-                      required
-                    />
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                      Unique inventory code (only letters, numbers, hyphens).
-                    </span>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Merchandise Category *</label>
-                    <select 
-                      className="select-filter" 
-                      style={{ height: '42px', width: '100%' }}
-                      value={newProductCategory}
-                      onChange={(e) => setNewProductCategory(e.target.value)}
-                      required
-                    >
-                      <option value="Electronics">Electronics</option>
-                      <option value="Furniture">Furniture</option>
-                      <option value="Fitness">Fitness</option>
-                      <option value="Apparel">Apparel</option>
-                      <option value="Tech">Tech &amp; Gadgets</option>
-                      <option value="Shoes">Shoes</option>
-                      <option value="Kitchen">Kitchen</option>
-                      <option value="Lifestyle">Lifestyle</option>
-                    </select>
-                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
-                      Helps buyers filter and discover your items.
-                    </span>
-                  </div>
+                <div className="form-group" style={{ marginTop: '16px' }}>
+                  <label className="form-label">Merchandise Category *</label>
+                  <select 
+                    className="select-filter" 
+                    style={{ height: '42px', width: '100%' }}
+                    value={newProductCategory}
+                    onChange={(e) => setNewProductCategory(e.target.value)}
+                    required
+                  >
+                    {getCategoryOptions(sellerUser?.category).map(opt => (
+                      <option key={opt.value + opt.label} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                    Helps buyers filter and discover your items.
+                  </span>
                 </div>
 
                 {/* --- SECTION 2: PRICING & INVENTORY --- */}
@@ -3061,9 +4057,9 @@ export default function EmahuProDashboard() {
                   <div style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', border: '1px solid #e2e8f0' }}>
                     <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>📦 Order Information</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.84rem' }}>
-                      {[['Order ID', <span style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#0f172a' }}>{selectedDetailedOrder.orderId}</span>],
+                      {[['Order ID', <span key="id" style={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#0f172a' }}>{selectedDetailedOrder.orderId}</span>],
                         ['Date', selectedDetailedOrder.date],
-                        ['Payment Status', <span style={{ color: '#16a34a', fontWeight: '600' }}>🔒 Secured in Escrow</span>],
+                        ['Payment Status', <span key="status" style={{ color: '#16a34a', fontWeight: '600' }}>🔒 Secured in Escrow</span>],
                       ].map(([label, val], i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: i < 2 ? '1px solid #f0f0f0' : 'none', paddingBottom: i < 2 ? '8px' : '0' }}>
                           <span style={{ color: '#64748b' }}>{label}</span>
@@ -3523,7 +4519,7 @@ function AdminSimulationHub({ products, triggerToast, onRefreshProducts }) {
             <thead>
               <tr>
                 <th>Product Request</th>
-                <th>Brand & SKU</th>
+                <th>Brand</th>
                 <th>Listing Details</th>
                 <th>Status / Attempts</th>
                 <th>Admin Actions</th>
@@ -3552,7 +4548,6 @@ function AdminSimulationHub({ products, triggerToast, onRefreshProducts }) {
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
                         <span style={{ fontWeight: 600, color: '#fff' }}>{p.brand || 'No Brand'}</span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.sku}</span>
                       </div>
                     </td>
                     <td>
@@ -3625,5 +4620,123 @@ function AdminSimulationHub({ products, triggerToast, onRefreshProducts }) {
         )}
       </div>
     </div>
+  );
+}
+
+function SellerDocumentResubmissionForm({ documents, onSuccess }) {
+  const [businessDocUrl, setBusinessDocUrl] = useState('');
+  const [idDocUrl, setIdDocUrl] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!businessDocUrl.trim() && !idDocUrl.trim()) {
+      setError('Please provide at least one document URL to resubmit.');
+      return;
+    }
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const token = localStorage.getItem('emahu_seller_token');
+      
+      if (businessDocUrl.trim()) {
+        const res = await fetch('http://localhost:5000/api/auth/seller/documents', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            documentType: 'business_registration',
+            fileUrl: businessDocUrl.trim()
+          })
+        });
+        if (res.status === 401) {
+          handleSessionExpired();
+          return;
+        }
+        const data = await res.json();
+        if (!data.success) {
+          setError(data.error || 'Failed to submit business registration');
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      if (idDocUrl.trim()) {
+        const res = await fetch('http://localhost:5000/api/auth/seller/documents', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            documentType: 'id_proof',
+            fileUrl: idDocUrl.trim()
+          })
+        });
+        if (res.status === 401) {
+          handleSessionExpired();
+          return;
+        }
+        const data = await res.json();
+        if (!data.success) {
+          setError(data.error || 'Failed to submit ID proof');
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      onSuccess();
+    } catch (err) {
+      console.error(err);
+      setError('Network error resubmitting details. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginTop: '24px' }}>
+      {error && (
+        <div style={{ color: '#f87171', background: 'rgba(239, 68, 68, 0.1)', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', border: '1px solid rgba(239, 68, 68, 0.2)', fontSize: '0.85rem' }}>
+          ⚠️ {error}
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="form-group">
+          <label className="form-label" style={{ color: '#fff', fontSize: '0.85rem' }}>Resubmit Business Registration Document URL</label>
+          <input 
+            type="url" 
+            className="form-input" 
+            placeholder="e.g. https://mock-s3.emahu.com/docs/gst_cert.pdf" 
+            value={businessDocUrl} 
+            onChange={e => setBusinessDocUrl(e.target.value)} 
+            style={{ width: '100%', padding: '10px', borderRadius: '6px', backgroundColor: '#1e1e24', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label" style={{ color: '#fff', fontSize: '0.85rem' }}>Resubmit ID Proof (PAN / Aadhaar) Document URL</label>
+          <input 
+            type="url" 
+            className="form-input" 
+            placeholder="e.g. https://mock-s3.emahu.com/docs/pan_card.jpg" 
+            value={idDocUrl} 
+            onChange={e => setIdDocUrl(e.target.value)} 
+            style={{ width: '100%', padding: '10px', borderRadius: '6px', backgroundColor: '#1e1e24', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }}
+          />
+        </div>
+        <button 
+          type="submit" 
+          className="company-portal-btn" 
+          style={{ width: '100%', height: '40px', background: '#6366f1', color: '#fff', fontWeight: '700', borderRadius: '8px', cursor: submitting ? 'not-allowed' : 'pointer', border: 'none' }}
+          disabled={submitting}
+        >
+          {submitting ? 'Resubmitting details...' : 'Resubmit for Verification'}
+        </button>
+      </div>
+    </form>
   );
 }

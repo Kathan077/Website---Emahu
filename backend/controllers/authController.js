@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const RefreshToken = require('../models/RefreshToken');
+const { verifyTOTP } = require('../utils/totp');
 
 // Helper to generate access and refresh tokens, and send response
 const sendTokenResponse = async (user, statusCode, req, res) => {
@@ -14,7 +15,7 @@ const sendTokenResponse = async (user, statusCode, req, res) => {
   // Generate Refresh Token (long-lived: 7 days)
   const refreshSecret = process.env.JWT_REFRESH_SECRET || 'emahu_super_secret_refresh_key_2026';
   const refreshTokenString = jwt.sign(
-    { id: user._id },
+    { id: user._id, nonce: Math.random().toString(36).substring(2) },
     refreshSecret,
     { expiresIn: '7d' }
   );
@@ -57,7 +58,10 @@ const sendTokenResponse = async (user, statusCode, req, res) => {
         email: user.email,
         role: user.role,
         phone: user.phone,
-        address: user.address
+        address: user.address,
+        storeName: user.storeName,
+        category: user.category,
+        status: user.status
       }
     });
 };
@@ -67,7 +71,23 @@ const sendTokenResponse = async (user, statusCode, req, res) => {
 // @access  Public
 exports.register = async (req, res) => {
   try {
-    const { name, email, password, role, phone, address } = req.body;
+    const {
+      name,
+      email,
+      password,
+      role,
+      phone,
+      address,
+      storeName,
+      category,
+      kycType,
+      kycNumber,
+      bankHolder,
+      accountNumber,
+      ifscCode,
+      bankName,
+      gstNumber
+    } = req.body;
 
     // Simple validation
     if (!name || !email || !password) {
@@ -93,8 +113,32 @@ exports.register = async (req, res) => {
       password,
       role: role || 'buyer',
       phone,
-      address
+      address,
+      storeName,
+      category,
+      kycType,
+      kycNumber,
+      bankHolder,
+      accountNumber,
+      ifscCode,
+      bankName,
+      gstNumber,
+      status: role === 'seller' ? 'pending' : 'approved'
     });
+
+    // Notify all admins of new seller registration
+    if (role === 'seller') {
+      const admins = await User.find({ role: 'admin' });
+      const Notification = require('../models/Notification');
+      for (const admin of admins) {
+        await Notification.create({
+          recipient: admin._id,
+          title: 'New Seller Registration',
+          message: `Seller "${name}" (${storeName || 'N/A'}) has registered and is pending approval.`,
+          type: 'info'
+        });
+      }
+    }
 
     // Send JWT and store refresh session
     await sendTokenResponse(user, 201, req, res);
@@ -122,7 +166,7 @@ exports.register = async (req, res) => {
 // @access  Public
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, twoFactorCode } = req.body;
 
     // Simple validation
     if (!email || !password) {
@@ -132,8 +176,8 @@ exports.login = async (req, res) => {
       });
     }
 
-    // Check if user exists (include password)
-    const user = await User.findOne({ email }).select('+password');
+    // Check if user exists (include password and 2fa secret)
+    const user = await User.findOne({ email }).select('+password +twoFactorSecret');
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -150,13 +194,41 @@ exports.login = async (req, res) => {
       });
     }
 
+    // Check status if role is seller
+    if (user.role === 'seller' && user.status === 'rejected') {
+      return res.status(403).json({
+        success: false,
+        error: 'Your seller account has been rejected by administration. Please contact support.'
+      });
+    }
+
+    // Check if 2FA is active
+    if (user.isTwoFactorEnabled) {
+      if (!twoFactorCode) {
+        return res.status(200).json({
+          success: true,
+          requires2FA: true,
+          message: 'Admin 2FA verification code required'
+        });
+      }
+      
+      const is2FAVerified = verifyTOTP(user.twoFactorSecret, twoFactorCode);
+      if (!is2FAVerified) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid 2FA verification code'
+        });
+      }
+    }
+
     // Send JWT and store refresh session
     await sendTokenResponse(user, 200, req, res);
   } catch (error) {
     console.error('Login Error:', error);
     return res.status(500).json({
       success: false,
-      error: 'Server Error during login'
+      error: 'Server Error during login: ' + error.message,
+      stack: error.stack
     });
   }
 };
@@ -188,8 +260,23 @@ exports.googleLogin = async (req, res) => {
         password: `google_${Math.random().toString(36).substring(2, 12)}`, // randomized dummy password
         role: role || 'buyer',
         phone: '+91 99999 99999',
-        address: 'Google Account Address'
+        address: 'Google Account Address',
+        status: role === 'seller' ? 'pending' : 'approved'
       });
+
+      // Notify all admins of new Google seller registration
+      if (role === 'seller') {
+        const admins = await User.find({ role: 'admin' });
+        const Notification = require('../models/Notification');
+        for (const admin of admins) {
+          await Notification.create({
+            recipient: admin._id,
+            title: 'New Seller Registration (Google)',
+            message: `Seller "${user.name}" has registered via Google and is pending approval.`,
+            type: 'info'
+          });
+        }
+      }
     } else {
       console.log(`Google user found: ${user.name} (${user.email})`);
     }
@@ -314,6 +401,16 @@ exports.getMe = async (req, res) => {
         role: req.user.role,
         phone: req.user.phone,
         address: req.user.address,
+        storeName: req.user.storeName,
+        category: req.user.category,
+        kycType: req.user.kycType,
+        kycNumber: req.user.kycNumber,
+        bankHolder: req.user.bankHolder,
+        accountNumber: req.user.accountNumber,
+        ifscCode: req.user.ifscCode,
+        bankName: req.user.bankName,
+        gstNumber: req.user.gstNumber,
+        status: req.user.status,
         createdAt: req.user.createdAt
       }
     });
@@ -410,5 +507,328 @@ exports.updatePassword = async (req, res) => {
       success: false,
       error: 'Server Error during password update'
     });
+  }
+};
+
+// @desc    Get all sellers for admin review
+// @route   GET /api/auth/admin/sellers
+// @access  Private (Admin only)
+exports.getSellers = async (req, res) => {
+  try {
+    const Product = require('../models/Product');
+    const Order = require('../models/Order');
+
+    const sellers = await User.find({ role: 'seller' }).lean();
+
+    for (let i = 0; i < sellers.length; i++) {
+      const sellerId = sellers[i]._id;
+      
+      // Calculate total products
+      sellers[i].totalProducts = await Product.countDocuments({ seller: sellerId });
+
+      // Calculate total units sold and total revenue from product sales
+      const productsList = await Product.find({ seller: sellerId });
+      sellers[i].totalSales = productsList.reduce((acc, p) => acc + (p.sales || 0), 0);
+      sellers[i].totalRevenue = productsList.reduce((acc, p) => acc + (p.price * (p.sales || 0)), 0);
+      
+      // Calculate total orders count
+      sellers[i].totalOrders = await Order.countDocuments({ sellerId: sellerId.toString() });
+    }
+
+    res.status(200).json({
+      success: true,
+      sellers
+    });
+  } catch (error) {
+    console.error('Get Sellers Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error retrieving sellers list'
+    });
+  }
+};
+
+// @desc    Admin approve or reject seller account
+// @route   PUT /api/auth/admin/sellers/:id/decision
+// @access  Private (Admin only)
+exports.sellerDecision = async (req, res) => {
+  try {
+    const { decision, feedback } = req.body; // 'approve', 'reject', 'more_info_requested'
+    const seller = await User.findById(req.params.id);
+    
+    if (!seller || seller.role !== 'seller') {
+      return res.status(404).json({ success: false, error: 'Seller not found' });
+    }
+
+    if (decision === 'approve') {
+      seller.status = 'approved';
+      seller.verificationFeedback = '';
+    } else if (decision === 'reject') {
+      seller.status = 'rejected';
+      seller.verificationFeedback = feedback || '';
+    } else if (decision === 'more_info_requested') {
+      seller.status = 'more_info_requested';
+      seller.verificationFeedback = feedback || '';
+    } else {
+      return res.status(400).json({ success: false, error: 'Invalid decision type' });
+    }
+
+    await seller.save();
+
+    // Create notification for seller
+    const Notification = require('../models/Notification');
+    await Notification.create({
+      recipient: seller._id,
+      title: `Store Account ${seller.status === 'approved' ? 'Approved' : seller.status === 'rejected' ? 'Rejected' : 'Action Required'}`,
+      message: seller.status === 'approved'
+        ? 'Congratulations! Your seller store account has been approved. You can now list products.'
+        : `Seller Verification Status: ${seller.status.replace(/_/g, ' ')}. Admin Feedback: ${feedback || 'None'}`,
+      type: seller.status === 'approved' ? 'success' : 'warning'
+    });
+
+    // Create Audit Log
+    const AuditLog = require('../models/AuditLog');
+    await AuditLog.create({
+      admin: req.user._id,
+      action: `DECISION_SELLER_${seller.status.toUpperCase()}`,
+      targetType: 'User',
+      targetId: seller._id,
+      details: { decision, feedback }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Seller status updated to ${seller.status} successfully`,
+      seller
+    });
+  } catch (error) {
+    console.error('Seller Decision Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ==================== 2FA CONTROLLERS ====================
+
+// @desc    Generate 2FA secret for setup
+// @route   GET /api/auth/admin/2fa/setup
+// @access  Private (Admin only)
+exports.setup2FA = async (req, res) => {
+  try {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let secret = '';
+    for (let i = 0; i < 16; i++) {
+      secret += chars[Math.floor(Math.random() * chars.length)];
+    }
+    const otpauthUrl = `otpauth://totp/EMAHU:${req.user.email}?secret=${secret}&issuer=EMAHU`;
+    res.status(200).json({
+      success: true,
+      secret,
+      otpauthUrl
+    });
+  } catch (error) {
+    console.error('Setup 2FA error:', error);
+    res.status(500).json({ success: false, error: 'Server error setting up 2FA' });
+  }
+};
+
+// @desc    Verify and enable 2FA
+// @route   POST /api/auth/admin/2fa/verify
+// @access  Private (Admin only)
+exports.verify2FA = async (req, res) => {
+  try {
+    const { secret, code } = req.body;
+    if (!secret || !code) {
+      return res.status(400).json({ success: false, error: 'Please provide secret and verification code' });
+    }
+
+    const isVerified = verifyTOTP(secret, code);
+    if (!isVerified) {
+      return res.status(400).json({ success: false, error: 'Invalid verification code' });
+    }
+
+    // Enable 2FA on the user account
+    const user = await User.findById(req.user._id);
+    user.twoFactorSecret = secret;
+    user.isTwoFactorEnabled = true;
+    await user.save();
+
+    // Log to Audit Log
+    const AuditLog = require('../models/AuditLog');
+    await AuditLog.create({
+      admin: req.user._id,
+      action: 'ENABLE_2FA',
+      targetType: 'User',
+      targetId: req.user._id,
+      details: { enabled: true }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: '2FA enabled successfully'
+    });
+  } catch (error) {
+    console.error('Verify 2FA error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Disable 2FA
+// @route   POST /api/auth/admin/2fa/disable
+// @access  Private (Admin only)
+exports.disable2FA = async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({ success: false, error: 'Please provide verification code' });
+    }
+
+    const user = await User.findById(req.user._id).select('+twoFactorSecret');
+    if (!user.isTwoFactorEnabled) {
+      return res.status(400).json({ success: false, error: '2FA is not enabled' });
+    }
+
+    const isVerified = verifyTOTP(user.twoFactorSecret, code);
+    if (!isVerified) {
+      return res.status(400).json({ success: false, error: 'Invalid verification code' });
+    }
+
+    user.isTwoFactorEnabled = false;
+    user.twoFactorSecret = undefined;
+    await user.save();
+
+    // Log to Audit Log
+    const AuditLog = require('../models/AuditLog');
+    await AuditLog.create({
+      admin: req.user._id,
+      action: 'DISABLE_2FA',
+      targetType: 'User',
+      targetId: req.user._id,
+      details: { enabled: false }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: '2FA disabled successfully'
+    });
+  } catch (error) {
+    console.error('Disable 2FA error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// ==================== SELLER DOCUMENTS CONTROLLERS ====================
+
+// @desc    Upload seller document references
+// @route   POST /api/auth/seller/documents
+// @access  Private (Seller only)
+exports.uploadDocument = async (req, res) => {
+  try {
+    const { documentType, fileUrl } = req.body;
+    if (!documentType || !fileUrl) {
+      return res.status(400).json({ success: false, error: 'Please provide documentType and fileUrl' });
+    }
+
+    const SellerDocument = require('../models/SellerDocument');
+    
+    // Check if document of this type already exists, if so overwrite or update
+    let doc = await SellerDocument.findOne({ seller: req.user._id, documentType });
+    if (doc) {
+      doc.fileUrl = fileUrl;
+      doc.status = 'pending';
+      doc.feedback = '';
+      await doc.save();
+    } else {
+      doc = await SellerDocument.create({
+        seller: req.user._id,
+        documentType,
+        fileUrl,
+        status: 'pending'
+      });
+    }
+
+    // Update seller status back to pending if they were in more_info_requested
+    if (req.user.status === 'more_info_requested') {
+      const user = await User.findById(req.user._id);
+      user.status = 'pending';
+      await user.save();
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Document uploaded successfully and verification is pending.',
+      document: doc
+    });
+  } catch (error) {
+    console.error('Upload document error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Get seller's own documents
+// @route   GET /api/auth/seller/documents
+// @access  Private (Seller only)
+exports.getOwnDocuments = async (req, res) => {
+  try {
+    const SellerDocument = require('../models/SellerDocument');
+    const documents = await SellerDocument.find({ seller: req.user._id });
+    res.status(200).json({ success: true, documents });
+  } catch (error) {
+    console.error('Get documents error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Admin view seller documents
+// @route   GET /api/auth/admin/sellers/:id/documents
+// @access  Private (Admin only)
+exports.getSellerDocumentsForAdmin = async (req, res) => {
+  try {
+    const SellerDocument = require('../models/SellerDocument');
+    const documents = await SellerDocument.find({ seller: req.params.id });
+    res.status(200).json({ success: true, documents });
+  } catch (error) {
+    console.error('Admin get seller documents error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// @desc    Admin decide a single document status
+// @route   PUT /api/auth/admin/sellers/:id/documents/:docId
+// @access  Private (Admin only)
+exports.verifySellerDocument = async (req, res) => {
+  try {
+    const { status, feedback } = req.body; // 'approved' | 'rejected'
+    if (!status || !['approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status type. Allowed: approved, rejected' });
+    }
+
+    const SellerDocument = require('../models/SellerDocument');
+    const doc = await SellerDocument.findById(req.params.docId);
+    if (!doc) {
+      return res.status(404).json({ success: false, error: 'Document not found' });
+    }
+
+    doc.status = status;
+    doc.feedback = feedback || '';
+    await doc.save();
+
+    // Log admin action to AuditLog
+    const AuditLog = require('../models/AuditLog');
+    await AuditLog.create({
+      admin: req.user._id,
+      action: `VERIFY_DOCUMENT_${status.toUpperCase()}`,
+      targetType: 'SellerDocument',
+      targetId: doc._id,
+      details: { status, feedback, documentType: doc.documentType }
+    });
+
+    res.status(200).json({
+      success: true,
+      message: `Document status set to ${status} successfully.`,
+      document: doc
+    });
+  } catch (error) {
+    console.error('Verify document error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 };

@@ -153,7 +153,7 @@ export default function SellerTestimonials() {
           <span className="st-header__badge">Seller Stories</span>
           <h2 className="st-header__title">Trusted by 12,400+ Sellers Across India</h2>
           <p className="st-header__desc">
-            From first-time entrepreneurs to established brands — here's what real sellers say about selling on Emahu.
+            {"From first-time entrepreneurs to established brands — here's what real sellers say about selling on Emahu."}
           </p>
         </div>
       </div>
@@ -212,7 +212,7 @@ function TestimonialCard({ t }) {
       </div>
 
       {/* Quote text */}
-      <p className="st-card__quote">"{t.quote}"</p>
+      <p className="st-card__quote">&quot;{t.quote}&quot;</p>
     </div>
   );
 }

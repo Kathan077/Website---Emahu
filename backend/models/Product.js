@@ -64,7 +64,7 @@ const productSchema = new mongoose.Schema(
     },
     approvalStatus: {
       type: String,
-      enum: ['pending', 'approved', 'rejected'],
+      enum: ['pending', 'approved', 'rejected', 'changes_requested'],
       default: 'pending'
     },
     adminCode: {
